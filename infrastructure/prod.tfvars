@@ -1,0 +1,14 @@
+environment = "prod"
+owner = "bank-devops"
+project = "account-opening"
+resource_group_name = "bank-account-opening-rg"
+location = "eastus"
+cluster_name = "bank-aks-cluster"
+node_count = 3
+vm_size = "Standard_DS3_v2"
+enable_auto_scaling = true
+min_count = 2
+max_count = 5
+private_cluster_enabled = true
+api_server_authorized_ip_ranges = ["<YOUR_PROD_IP>"]
+acr_name = "bankaccountregistryprod"
