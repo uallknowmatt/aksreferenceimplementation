@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: account-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: account-service
+  template:
+    metadata:
+      labels:
+        app: account-service
+      annotations:
+        azure.workload.identity/client-id: <MANAGED_IDENTITY_CLIENT_ID>
+    spec:
+      containers:
+      - name: account-service
+        image: <ACR_LOGIN_SERVER>/account-service:<TAG>
+        ports:
+        - containerPort: 8083
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "dev"
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: account-service-config
+              key: postgres-host
+        - name: POSTGRES_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: account-service-secret
+              key: postgres-username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: account-service-secret
+              key: postgres-password

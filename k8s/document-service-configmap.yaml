@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: document-service-config
+  labels:
+    app: document-service
+  namespace: default
+
+data:
+  postgres-host: "<POSTGRES_HOST>"

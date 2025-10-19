@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: document-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: document-service
+  template:
+    metadata:
+      labels:
+        app: document-service
+      annotations:
+        azure.workload.identity/client-id: <MANAGED_IDENTITY_CLIENT_ID>
+    spec:
+      containers:
+      - name: document-service
+        image: <ACR_LOGIN_SERVER>/document-service:<TAG>
+        ports:
+        - containerPort: 8082
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: "dev"
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: document-service-config
+              key: postgres-host
+        - name: POSTGRES_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: document-service-secret
+              key: postgres-username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: document-service-secret
+              key: postgres-password

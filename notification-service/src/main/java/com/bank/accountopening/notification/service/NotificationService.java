@@ -19,6 +19,9 @@ public class NotificationService {
 
     @Transactional
     public Notification sendNotification(Notification notification) {
+        if (notification == null) {
+            throw new IllegalArgumentException("Notification cannot be null");
+        }
         notification.setSent(true); // Simulate sending
         return notificationRepository.save(notification);
     }

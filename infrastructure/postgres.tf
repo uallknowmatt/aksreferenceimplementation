@@ -8,15 +8,13 @@ resource "azurerm_postgresql_flexible_server" "db" {
   sku_name               = var.db_sku_name
   storage_mb             = var.db_storage_mb
   version                = "14"
-  zone                   = "1"
-  high_availability {
-    mode = "ZoneRedundant"
-  }
-  authentication {
-    active_directory_auth_enabled = true
-    password_auth_enabled         = false
-  }
-  public_network_access_enabled = false
+  
+  # Simplified for dev - remove high availability and AD auth
+  # Uncomment for production:
+  # high_availability {
+  #   mode = "ZoneRedundant"
+  # }
+  
   tags = {
     environment = var.environment
     owner       = var.owner

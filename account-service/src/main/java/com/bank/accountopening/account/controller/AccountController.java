@@ -11,6 +11,9 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/accounts")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"}, 
+             allowedHeaders = "*",
+             methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE})
 public class AccountController {
     private final AccountService accountService;
 
@@ -22,6 +25,11 @@ public class AccountController {
     @PostMapping
     public ResponseEntity<Account> createAccount(@Valid @RequestBody Account account) {
         return ResponseEntity.ok(accountService.createAccount(account));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Account>> getAllAccounts() {
+        return ResponseEntity.ok(accountService.getAllAccounts());
     }
 
     @GetMapping("/customer/{customerId}")

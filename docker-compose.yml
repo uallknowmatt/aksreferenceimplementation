@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  # PostgreSQL for Customer Service
+  customer-db:
+    image: postgres:15-alpine
+    container_name: customer-db
+    environment:
+      POSTGRES_DB: customerdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - customer-data:/var/lib/postgresql/data
+      - ./docker/init-scripts/customer-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - account-opening-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL for Document Service
+  document-db:
+    image: postgres:15-alpine
+    container_name: document-db
+    environment:
+      POSTGRES_DB: documentdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - document-data:/var/lib/postgresql/data
+      - ./docker/init-scripts/document-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - account-opening-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL for Account Service
+  account-db:
+    image: postgres:15-alpine
+    container_name: account-db
+    environment:
+      POSTGRES_DB: accountdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - account-data:/var/lib/postgresql/data
+      - ./docker/init-scripts/account-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - account-opening-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL for Notification Service
+  notification-db:
+    image: postgres:15-alpine
+    container_name: notification-db
+    environment:
+      POSTGRES_DB: notificationdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    volumes:
+      - notification-data:/var/lib/postgresql/data
+      - ./docker/init-scripts/notification-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - account-opening-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # pgAdmin for database management (optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@accountopening.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    networks:
+      - account-opening-network
+    depends_on:
+      - customer-db
+      - document-db
+      - account-db
+      - notification-db
+
+networks:
+  account-opening-network:
+    driver: bridge
+
+volumes:
+  customer-data:
+  document-data:
+  account-data:
+  notification-data:

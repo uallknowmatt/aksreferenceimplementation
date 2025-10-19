@@ -30,6 +30,10 @@ public class AccountService {
         return accountRepository.findByCustomerId(customerId);
     }
 
+    public List<Account> getAllAccounts() {
+        return accountRepository.findAll();
+    }
+
     public Account getAccount(Long id) {
         return accountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Account not found"));

@@ -11,6 +11,9 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/documents")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:3001"}, 
+             allowedHeaders = "*",
+             methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE})
 public class DocumentController {
     private final DocumentService documentService;
 
@@ -22,6 +25,11 @@ public class DocumentController {
     @PostMapping
     public ResponseEntity<Document> uploadDocument(@Valid @RequestBody Document document) {
         return ResponseEntity.ok(documentService.uploadDocument(document));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Document>> getAllDocuments() {
+        return ResponseEntity.ok(documentService.getAllDocuments());
     }
 
     @GetMapping("/customer/{customerId}")

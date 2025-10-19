@@ -26,6 +26,10 @@ public class DocumentService {
         return documentRepository.findByCustomerId(customerId);
     }
 
+    public List<Document> getAllDocuments() {
+        return documentRepository.findAll();
+    }
+
     @Transactional
     public Document verifyDocument(Long documentId, boolean verified) {
         Document document = documentRepository.findById(documentId)

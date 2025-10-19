@@ -1,0 +1,130 @@
+name: Deploy to AKS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: ${{ secrets.ACR_LOGIN_SERVER }}
+  AKS_CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
+  AKS_RG: ${{ secrets.AKS_RESOURCE_GROUP }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Maven
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+          maven-version: '3.8.8'
+
+      - name: Check Maven version
+        run: mvn --version
+
+      - name: Build microservices
+        run: |
+          mvn clean package -DskipTests
+
+      - name: Log in to Azure Container Registry
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push images
+        run: |
+          docker build -t $REGISTRY/customer-service:$IMAGE_TAG ./customer-service
+          docker build -t $REGISTRY/document-service:$IMAGE_TAG ./document-service
+          docker build -t $REGISTRY/account-service:$IMAGE_TAG ./account-service
+          docker build -t $REGISTRY/notification-service:$IMAGE_TAG ./notification-service
+          docker push $REGISTRY/customer-service:$IMAGE_TAG
+          docker push $REGISTRY/document-service:$IMAGE_TAG
+          docker push $REGISTRY/account-service:$IMAGE_TAG
+          docker push $REGISTRY/notification-service:$IMAGE_TAG
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          cluster-name: ${{ env.AKS_CLUSTER }}
+          resource-group: ${{ env.AKS_RG }}
+
+      - name: Replace placeholders in k8s files
+        run: |
+          # Replace ACR and image tags
+          sed -i "s|<ACR_LOGIN_SERVER>|$REGISTRY|g" k8s/*.yaml
+          sed -i "s|<TAG>|$IMAGE_TAG|g" k8s/*.yaml
+          sed -i "s|<MANAGED_IDENTITY_CLIENT_ID>|${{ secrets.MANAGED_IDENTITY_CLIENT_ID }}|g" k8s/*.yaml
+          
+          # Replace postgres host
+          sed -i "s|<POSTGRES_HOST>|${{ secrets.POSTGRES_HOST }}|g" k8s/*.yaml
+          
+          # Encode and replace postgres credentials
+          POSTGRES_USER_B64=$(echo -n "${{ secrets.POSTGRES_USERNAME }}" | base64)
+          POSTGRES_PASS_B64=$(echo -n "${{ secrets.POSTGRES_PASSWORD }}" | base64)
+          sed -i "s|<BASE64_ENCODED_USERNAME>|$POSTGRES_USER_B64|g" k8s/*.yaml
+          sed -i "s|<BASE64_ENCODED_PASSWORD>|$POSTGRES_PASS_B64|g" k8s/*.yaml
+
+      - name: Deploy ConfigMaps and Secrets
+        run: |
+          kubectl apply -f k8s/customer-service-configmap.yaml
+          kubectl apply -f k8s/document-service-configmap.yaml
+          kubectl apply -f k8s/account-service-configmap.yaml
+          kubectl apply -f k8s/notification-service-configmap.yaml
+          kubectl apply -f k8s/customer-service-secret.yaml
+          kubectl apply -f k8s/document-service-secret.yaml
+          kubectl apply -f k8s/account-service-secret.yaml
+          kubectl apply -f k8s/notification-service-secret.yaml
+
+      - name: Deploy Services
+        run: |
+          kubectl apply -f k8s/customer-service-service.yaml
+          kubectl apply -f k8s/document-service-service.yaml
+          kubectl apply -f k8s/account-service-service.yaml
+          kubectl apply -f k8s/notification-service-service.yaml
+
+      - name: Deploy to AKS
+        run: |
+          kubectl apply -f k8s/customer-service-deployment.yaml
+          kubectl apply -f k8s/document-service-deployment.yaml
+          kubectl apply -f k8s/account-service-deployment.yaml
+          kubectl apply -f k8s/notification-service-deployment.yaml
+
+      - name: Wait for deployments
+        run: |
+          kubectl rollout status deployment/customer-service --timeout=300s
+          kubectl rollout status deployment/document-service --timeout=300s
+          kubectl rollout status deployment/account-service --timeout=300s
+          kubectl rollout status deployment/notification-service --timeout=300s
+
+      - name: Get Service IPs
+        run: |
+          echo "=== Service External IPs ==="
+          kubectl get services -o wide
