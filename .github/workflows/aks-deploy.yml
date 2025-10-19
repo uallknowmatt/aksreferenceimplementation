@@ -23,17 +23,7 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: Set up Maven
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
           cache: 'maven'
-          maven-version: '3.8.8'
-
-      - name: Check Maven version
-        run: mvn --version
 
       - name: Build microservices
         run: |
