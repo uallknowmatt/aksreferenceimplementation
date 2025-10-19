@@ -62,15 +62,22 @@ EXISTING_CRED=$(az ad app federated-credential list --id $CLIENT_ID --query "[?n
 
 if [ -z "$EXISTING_CRED" ]; then
   echo "Creating federated credential..."
-  az ad app federated-credential create \
-    --id $CLIENT_ID \
-    --parameters "{
-      \"name\": \"$CRED_NAME\",
-      \"issuer\": \"https://token.actions.githubusercontent.com\",
-      \"subject\": \"repo:$GITHUB_ORG/$GITHUB_REPO:ref:refs/heads/$GITHUB_BRANCH\",
-      \"description\": \"GitHub Actions OIDC for main branch\",
-      \"audiences\": [\"api://AzureADTokenExchange\"]
-    }" > /dev/null
+  
+  # Create temporary JSON file to avoid shell escaping issues
+  TEMP_JSON=$(mktemp)
+  cat > $TEMP_JSON <<EOF
+{
+  "name": "$CRED_NAME",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:$GITHUB_ORG/$GITHUB_REPO:ref:refs/heads/$GITHUB_BRANCH",
+  "description": "GitHub Actions OIDC for main branch",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+EOF
+  
+  az ad app federated-credential create --id $CLIENT_ID --parameters "@$TEMP_JSON" > /dev/null
+  rm -f $TEMP_JSON
+  
   echo "✅ Created federated credential"
 else
   echo "✅ Federated credential already exists (reusing)"

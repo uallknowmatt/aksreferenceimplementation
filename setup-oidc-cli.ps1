@@ -62,15 +62,21 @@ $EXISTING_CRED = az ad app federated-credential list --id $CLIENT_ID --query "[?
 if ([string]::IsNullOrEmpty($EXISTING_CRED)) {
     Write-Host "Creating federated credential..." -ForegroundColor Yellow
     
+    # Create JSON file (PowerShell has issues with inline JSON)
     $federatedCredParams = @{
         name = $CRED_NAME
         issuer = "https://token.actions.githubusercontent.com"
-        subject = "repo:$GITHUB_ORG/$GITHUB_REPO:ref:refs/heads/$GITHUB_BRANCH"
+        subject = "repo:$GITHUB_ORG/$GITHUB_REPO`:ref:refs/heads/$GITHUB_BRANCH"
         description = "GitHub Actions OIDC for main branch"
         audiences = @("api://AzureADTokenExchange")
-    } | ConvertTo-Json -Compress
+    }
     
-    az ad app federated-credential create --id $CLIENT_ID --parameters $federatedCredParams | Out-Null
+    $tempJsonFile = [System.IO.Path]::GetTempFileName()
+    $federatedCredParams | ConvertTo-Json -Depth 10 | Out-File -FilePath $tempJsonFile -Encoding utf8
+    
+    az ad app federated-credential create --id $CLIENT_ID --parameters "@$tempJsonFile" | Out-Null
+    Remove-Item $tempJsonFile -ErrorAction SilentlyContinue
+    
     Write-Host "✅ Created federated credential" -ForegroundColor Green
 } else {
     Write-Host "✅ Federated credential already exists (reusing)" -ForegroundColor Green
