@@ -1,5 +1,20 @@
 # Azure Deployment Prerequisites
 
+## ⚠️ IMPORTANT: Correct Order of Operations
+
+**To avoid deployment failures, follow this exact order:**
+
+1. ✅ **Create Service Principal** (for GitHub Actions authentication)
+2. ✅ **Disable GitHub Actions temporarily** (prevent premature deployment)
+3. ✅ **Run Terraform** to create Azure infrastructure
+4. ✅ **Configure GitHub Secrets** with Terraform outputs
+5. ✅ **Re-enable GitHub Actions**
+6. ✅ **Push code** to trigger deployment
+
+**Why this order?** If you push code before secrets are configured, the GitHub Actions workflow will fail because it can't authenticate to Azure or push to ACR.
+
+---
+
 ## ✅ Completed Steps
 
 1. **Liquibase Implementation** - ✅ Production-grade database migrations configured
@@ -42,7 +57,34 @@ The GitHub Actions workflow requires these secrets to be configured:
 
 ## 📋 Setup Instructions
 
-### Step 1: Create Azure Resources with Terraform
+### Step 1: Create Azure Service Principal FIRST
+
+**⚠️ Do this BEFORE running Terraform or pushing code**
+
+```bash
+# Create service principal for GitHub Actions
+az ad sp create-for-rbac --name "github-actions-aks" \
+  --role contributor \
+  --scopes /subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RESOURCE_GROUP> \
+  --sdk-auth
+
+# This outputs JSON - copy the entire output for AZURE_CREDENTIALS secret
+```
+
+Save this output - you'll need it for GitHub Secrets.
+
+### Step 2: Disable GitHub Actions Temporarily
+
+**Important:** Prevent automatic deployment while setting up infrastructure:
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Actions** → **General**
+3. Under "Actions permissions", select **Disable actions**
+4. Click **Save**
+
+This prevents the workflow from running until infrastructure is ready.
+
+### Step 3: Create Azure Resources with Terraform
 
 ```bash
 cd infrastructure
@@ -58,7 +100,7 @@ terraform apply dev.tfplan
 terraform output
 ```
 
-### Step 2: Get ACR Credentials
+### Step 4: Get ACR Credentials
 
 ```bash
 # Get ACR login server
@@ -71,19 +113,7 @@ az acr update --name <YOUR_ACR_NAME> --admin-enabled true
 az acr credential show --name <YOUR_ACR_NAME>
 ```
 
-### Step 3: Create Azure Service Principal
-
-```bash
-# Create service principal for GitHub Actions
-az ad sp create-for-rbac --name "github-actions-aks" \
-  --role contributor \
-  --scopes /subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RESOURCE_GROUP> \
-  --sdk-auth
-
-# This outputs JSON - copy the entire output for AZURE_CREDENTIALS secret
-```
-
-### Step 4: Get PostgreSQL Connection Info
+### Step 5: Get PostgreSQL Connection Info
 
 ```bash
 # Get PostgreSQL host
@@ -94,31 +124,63 @@ az postgres flexible-server show --name <POSTGRES_NAME> --resource-group <RG> \
 # Check your terraform.tfvars or dev.tfvars for username/password
 ```
 
-### Step 5: Configure GitHub Secrets
+### Step 6: Configure GitHub Secrets
 
 1. Go to your GitHub repository
 2. Navigate to **Settings** → **Secrets and variables** → **Actions**
 3. Click **New repository secret** for each secret listed above
 4. Paste the values obtained from previous steps
 
+**Required Secrets:**
+- ACR_LOGIN_SERVER (from Step 4)
+- ACR_USERNAME (from Step 4)
+- ACR_PASSWORD (from Step 4)
+- AKS_CLUSTER_NAME (from Terraform output)
+- AKS_RESOURCE_GROUP (from Terraform output)
+- AZURE_CREDENTIALS (from Step 1)
+- POSTGRES_HOST (from Step 5)
+- POSTGRES_USERNAME (from your tfvars)
+- POSTGRES_PASSWORD (from your tfvars)
+- MANAGED_IDENTITY_CLIENT_ID (from Terraform output, optional)
+
+### Step 7: Re-enable GitHub Actions
+
+1. Go back to **Settings** → **Actions** → **General**
+2. Under "Actions permissions", select **Allow all actions and reusable workflows**
+3. Click **Save**
+
 ## 🚀 Deployment Workflow
 
-Once secrets are configured:
+Once infrastructure is created and secrets are configured:
 
-1. **Push to main branch** - Triggers automatic deployment
+1. **Verify all secrets are set**
    ```bash
+   # Go to GitHub repo → Settings → Secrets → Actions
+   # Confirm all 9-10 secrets are showing (values hidden)
+   ```
+
+2. **Push to main branch** - Triggers automatic deployment
+   ```bash
+   git push origin main
+   # Or if already pushed, create empty commit to trigger:
+   git commit --allow-empty -m "Trigger deployment"
    git push origin main
    ```
 
-2. **Monitor GitHub Actions** - Watch deployment progress
+3. **Monitor GitHub Actions** - Watch deployment progress
    - Go to GitHub repo → Actions tab
    - View "Deploy to AKS" workflow
+   - Check for successful build-and-push job
+   - Check for successful deploy job
 
-3. **Verify deployment** - Check pods in AKS
+4. **Verify deployment** - Check pods in AKS
    ```bash
    az aks get-credentials --resource-group <RG> --name <AKS_NAME>
    kubectl get pods
    kubectl get services
+   
+   # Watch pods start up (Liquibase will run)
+   kubectl logs -l app=customer-service -f
    ```
 
 ## ⚙️ Current Status
