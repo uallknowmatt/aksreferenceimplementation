@@ -3,6 +3,12 @@ provider "azurerm" {
   features {}
 }
 
+# Azure AD Provider for Service Principal creation
+provider "azuread" {}
+
+# Data sources for current Azure context
+data "azurerm_client_config" "current" {}
+
 # Note: All resources are defined in separate .tf files:
 # - resource_group.tf: Resource group
 # - logging.tf: Log Analytics workspace
