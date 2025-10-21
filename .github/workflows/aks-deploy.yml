@@ -52,11 +52,99 @@ jobs:
           terraform_version: 1.6.0
           terraform_wrapper: false
 
+      - name: Setup Terraform State Backend
+        run: |
+          echo "🔍 Checking if Terraform state backend exists..."
+          
+          RESOURCE_GROUP="terraform-state-rg"
+          STORAGE_ACCOUNT="tfstateaccountopening"
+          CONTAINER="tfstate"
+          LOCATION="eastus"
+          
+          # Check if storage account exists
+          if az storage account show --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP &>/dev/null; then
+            echo "✅ Backend storage account already exists"
+          else
+            echo "📦 Creating Terraform state backend..."
+            
+            # Create resource group
+            echo "Creating resource group: $RESOURCE_GROUP"
+            az group create \
+              --name $RESOURCE_GROUP \
+              --location $LOCATION \
+              --tags purpose=terraform-state managed_by=github-actions
+            
+            # Create storage account
+            echo "Creating storage account: $STORAGE_ACCOUNT"
+            az storage account create \
+              --name $STORAGE_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --location $LOCATION \
+              --sku Standard_LRS \
+              --kind StorageV2 \
+              --https-only true \
+              --min-tls-version TLS1_2 \
+              --allow-blob-public-access false \
+              --tags purpose=terraform-state managed_by=github-actions
+            
+            # Enable versioning
+            echo "Enabling blob versioning..."
+            az storage account blob-service-properties update \
+              --account-name $STORAGE_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --enable-versioning true
+            
+            # Create container
+            echo "Creating blob container: $CONTAINER"
+            az storage container create \
+              --name $CONTAINER \
+              --account-name $STORAGE_ACCOUNT \
+              --auth-mode login
+            
+            # Enable soft delete
+            echo "Enabling soft delete (30 days)..."
+            az storage account blob-service-properties update \
+              --account-name $STORAGE_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --enable-delete-retention true \
+              --delete-retention-days 30
+            
+            echo "✅ Backend storage created successfully!"
+          fi
+          
+          # Grant GitHub Actions service principal access to state storage
+          echo "🔐 Ensuring service principal has storage access..."
+          STORAGE_ACCOUNT_ID=$(az storage account show \
+            --name $STORAGE_ACCOUNT \
+            --resource-group $RESOURCE_GROUP \
+            --query id -o tsv)
+          
+          SP_OBJECT_ID=$(az ad sp show \
+            --id ${{ secrets.AZURE_CLIENT_ID }} \
+            --query id -o tsv)
+          
+          # Check if role assignment exists, if not create it
+          if ! az role assignment list \
+            --assignee $SP_OBJECT_ID \
+            --role "Storage Blob Data Contributor" \
+            --scope $STORAGE_ACCOUNT_ID \
+            --query "[0].id" -o tsv &>/dev/null; then
+            
+            echo "Granting Storage Blob Data Contributor role..."
+            az role assignment create \
+              --assignee $SP_OBJECT_ID \
+              --role "Storage Blob Data Contributor" \
+              --scope $STORAGE_ACCOUNT_ID
+            echo "✅ Role assigned successfully!"
+          else
+            echo "✅ Service principal already has required role"
+          fi
+
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          echo "Initializing Terraform..."
-          terraform init
+          echo "Initializing Terraform with remote backend..."
+          terraform init -reconfigure
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}

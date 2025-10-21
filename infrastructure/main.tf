@@ -1,3 +1,27 @@
+terraform {
+  # Remote state backend - stores state in Azure Storage
+  # This allows state to persist between workflow runs
+  backend "azurerm" {
+    resource_group_name  = "terraform-state-rg"
+    storage_account_name = "tfstateaccountopening"
+    container_name       = "tfstate"
+    key                  = "dev.terraform.tfstate"
+    # Authentication via ARM_* environment variables (same as provider)
+  }
+  
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0"
+    }
+  }
+  required_version = ">= 1.6.0"
+}
+
 # Azure Provider configuration
 provider "azurerm" {
   features {}

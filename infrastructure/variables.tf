@@ -98,3 +98,65 @@ variable "db_storage_mb" {
   type        = number
   default     = 5120
 }
+
+# ============================================
+# Networking Variables
+# ============================================
+
+variable "vnet_address_space" {
+  description = "Address space for the virtual network"
+  type        = list(string)
+  default     = ["10.0.0.0/16"]
+}
+
+variable "aks_subnet_address_prefix" {
+  description = "Address prefix for AKS subnet"
+  type        = list(string)
+  default     = ["10.0.1.0/24"]
+}
+
+variable "acr_subnet_address_prefix" {
+  description = "Address prefix for ACR subnet"
+  type        = list(string)
+  default     = ["10.0.2.0/24"]
+}
+
+variable "aks_service_cidr" {
+  description = "CIDR for Kubernetes services (must not overlap with VNet)"
+  type        = string
+  default     = "10.1.0.0/16"
+}
+
+variable "aks_dns_service_ip" {
+  description = "IP address for Kubernetes DNS service (must be within service_cidr)"
+  type        = string
+  default     = "10.1.0.10"
+}
+
+# ============================================
+# Terraform State Backend Variables
+# ============================================
+
+variable "terraform_state_resource_group" {
+  description = "Resource group name for Terraform state storage"
+  type        = string
+  default     = "terraform-state-rg"
+}
+
+variable "terraform_state_storage_account" {
+  description = "Storage account name for Terraform state"
+  type        = string
+  default     = "tfstateaccountopening"
+}
+
+variable "terraform_state_container" {
+  description = "Container name for Terraform state"
+  type        = string
+  default     = "tfstate"
+}
+
+variable "terraform_state_key" {
+  description = "State file name"
+  type        = string
+  default     = "dev.terraform.tfstate"
+}
