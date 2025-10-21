@@ -5,7 +5,7 @@ terraform {
     resource_group_name  = "terraform-state-rg"
     storage_account_name = "tfstateaccountopening"
     container_name       = "tfstate"
-    key                  = "dev.terraform.tfstate"
+    # key is passed via -backend-config in terraform init
     # Authentication via ARM_* environment variables (same as provider)
   }
   

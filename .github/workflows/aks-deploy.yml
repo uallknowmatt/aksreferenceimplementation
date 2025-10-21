@@ -1,4 +1,4 @@
-name: Deploy to AKS
+name: Deploy to AKS (Dev & Production)
 
 on:
   push:
@@ -14,20 +14,20 @@ permissions:
 env:
   IMAGE_TAG: ${{ github.sha }}
   TF_WORKING_DIR: ./infrastructure
-  ENVIRONMENT: dev
 
 jobs:
   # ============================================
-  # JOB 1: Deploy Azure Infrastructure
+  # JOB 1: Deploy Azure Infrastructure (DEV)
   # ============================================
-  terraform-deploy:
-    name: Deploy Azure Infrastructure
+  terraform-deploy-dev:
+    name: Deploy Azure Infrastructure (Dev)
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       ARM_USE_OIDC: true
+      ENVIRONMENT: dev
     outputs:
       acr_login_server: ${{ steps.tf-output.outputs.acr_login_server }}
       acr_name: ${{ steps.tf-output.outputs.acr_name }}
@@ -143,8 +143,9 @@ jobs:
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          echo "Initializing Terraform with remote backend..."
-          terraform init -reconfigure
+          echo "Initializing Terraform with remote backend (dev environment)..."
+          terraform init -reconfigure \
+            -backend-config="key=dev.terraform.tfstate"
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -155,8 +156,8 @@ jobs:
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          echo "Creating Terraform plan for ${{ env.ENVIRONMENT }} environment..."
-          terraform plan -var-file=environments/${{ env.ENVIRONMENT }}/terraform.tfvars -out=tfplan
+          echo "Creating Terraform plan for dev environment..."
+          terraform plan -var-file=environments/dev/terraform.tfvars -out=tfplan
           
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -192,11 +193,11 @@ jobs:
           echo "managed_identity_client_id=$MANAGED_IDENTITY_CLIENT_ID" >> $GITHUB_OUTPUT
 
   # ============================================
-  # JOB 2: Build and Push Docker Images
+  # JOB 2: Build and Push Docker Images (DEV)
   # ============================================
-  build-and-push:
-    name: Build and Push Images
-    needs: terraform-deploy
+  build-and-push-dev:
+    name: Build and Push Images (Dev)
+    needs: terraform-deploy-dev
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -224,13 +225,13 @@ jobs:
 
       - name: Log in to Azure Container Registry
         run: |
-          echo "Logging into ACR: ${{ needs.terraform-deploy.outputs.acr_name }}"
-          az acr login --name ${{ needs.terraform-deploy.outputs.acr_name }}
+          echo "Logging into ACR: ${{ needs.terraform-deploy-dev.outputs.acr_name }}"
+          az acr login --name ${{ needs.terraform-deploy-dev.outputs.acr_name }}
           echo "✅ Logged into ACR!"
 
       - name: Build and push Docker images
         env:
-          ACR_LOGIN_SERVER: ${{ needs.terraform-deploy.outputs.acr_login_server }}
+          ACR_LOGIN_SERVER: ${{ needs.terraform-deploy-dev.outputs.acr_login_server }}
         run: |
           echo "Building Docker images..."
           
@@ -257,11 +258,11 @@ jobs:
           echo "✅ All images pushed to ACR!"
 
   # ============================================
-  # JOB 3: Deploy to AKS
+  # JOB 3: Deploy to AKS (DEV)
   # ============================================
-  deploy-to-aks:
-    name: Deploy to AKS
-    needs: [terraform-deploy, build-and-push]
+  deploy-to-aks-dev:
+    name: Deploy to AKS (Dev)
+    needs: [terraform-deploy-dev, build-and-push-dev]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -277,14 +278,14 @@ jobs:
       - name: Set AKS context
         uses: azure/aks-set-context@v3
         with:
-          cluster-name: ${{ needs.terraform-deploy.outputs.aks_cluster_name }}
-          resource-group: ${{ needs.terraform-deploy.outputs.aks_resource_group }}
+          cluster-name: ${{ needs.terraform-deploy-dev.outputs.aks_cluster_name }}
+          resource-group: ${{ needs.terraform-deploy-dev.outputs.aks_resource_group }}
 
       - name: Replace placeholders in k8s manifests
         env:
-          ACR_LOGIN_SERVER: ${{ needs.terraform-deploy.outputs.acr_login_server }}
-          POSTGRES_HOST: ${{ needs.terraform-deploy.outputs.postgres_host }}
-          MANAGED_IDENTITY_CLIENT_ID: ${{ needs.terraform-deploy.outputs.managed_identity_client_id }}
+          ACR_LOGIN_SERVER: ${{ needs.terraform-deploy-dev.outputs.acr_login_server }}
+          POSTGRES_HOST: ${{ needs.terraform-deploy-dev.outputs.postgres_host }}
+          MANAGED_IDENTITY_CLIENT_ID: ${{ needs.terraform-deploy-dev.outputs.managed_identity_client_id }}
         run: |
           echo "Updating Kubernetes manifests..."
           
@@ -343,7 +344,7 @@ jobs:
       - name: Get Service Information
         run: |
           echo "=========================================="
-          echo "Deployment Summary"
+          echo "Deployment Summary (Dev)"
           echo "=========================================="
           echo ""
           echo "📦 Pods:"
@@ -352,4 +353,356 @@ jobs:
           echo "🌐 Services:"
           kubectl get services -o wide
           echo ""
-          echo "✅ Deployment complete!"
+          echo "✅ Dev deployment complete!"
+
+  # ============================================
+  # JOB 4: UAT Test Complete (Manual Approval Gate)
+  # ============================================
+  uat-test-complete:
+    name: UAT Testing Complete - Approve for Production
+    needs: [deploy-to-aks-dev]
+    runs-on: ubuntu-latest
+    environment:
+      name: production-approval
+    steps:
+      - name: Manual Approval Required
+        run: |
+          echo "=========================================="
+          echo "🎯 UAT TESTING COMPLETE"
+          echo "=========================================="
+          echo ""
+          echo "✅ Development environment deployed successfully"
+          echo "✅ Ready for production deployment"
+          echo ""
+          echo "⚠️  Production deployment will begin after manual approval"
+          echo "⚠️  Please verify UAT testing is complete before approving"
+          echo ""
+          echo "To approve:"
+          echo "1. Review the dev deployment results"
+          echo "2. Complete UAT testing"
+          echo "3. Approve this workflow in GitHub Actions UI"
+          echo ""
+
+  # ============================================
+  # JOB 5: Deploy Azure Infrastructure (PROD)
+  # ============================================
+  terraform-deploy-prod:
+    name: Deploy Azure Infrastructure (Prod)
+    needs: [uat-test-complete]
+    runs-on: ubuntu-latest
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: true
+      ENVIRONMENT: prod
+    outputs:
+      acr_login_server: ${{ steps.tf-output.outputs.acr_login_server }}
+      acr_name: ${{ steps.tf-output.outputs.acr_name }}
+      aks_cluster_name: ${{ steps.tf-output.outputs.aks_cluster_name }}
+      aks_resource_group: ${{ steps.tf-output.outputs.aks_resource_group }}
+      postgres_host: ${{ steps.tf-output.outputs.postgres_host }}
+      managed_identity_client_id: ${{ steps.tf-output.outputs.managed_identity_client_id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Setup Terraform State Backend
+        run: |
+          echo "🔍 Checking if Terraform state backend exists..."
+          
+          RESOURCE_GROUP="terraform-state-rg"
+          STORAGE_ACCOUNT="tfstateaccountopening"
+          CONTAINER="tfstate"
+          LOCATION="eastus"
+          
+          if az storage account show --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP &>/dev/null; then
+            echo "✅ Backend storage account already exists"
+          else
+            echo "📦 Creating Terraform state backend..."
+            
+            az group create \
+              --name $RESOURCE_GROUP \
+              --location $LOCATION \
+              --tags purpose=terraform-state managed_by=github-actions
+            
+            az storage account create \
+              --name $STORAGE_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --location $LOCATION \
+              --sku Standard_LRS \
+              --kind StorageV2 \
+              --https-only true \
+              --min-tls-version TLS1_2 \
+              --allow-blob-public-access false \
+              --tags purpose=terraform-state managed_by=github-actions
+            
+            az storage account blob-service-properties update \
+              --account-name $STORAGE_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --enable-versioning true
+            
+            az storage container create \
+              --name $CONTAINER \
+              --account-name $STORAGE_ACCOUNT \
+              --auth-mode login
+            
+            az storage account blob-service-properties update \
+              --account-name $STORAGE_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --enable-delete-retention true \
+              --delete-retention-days 30
+            
+            echo "✅ Backend storage created successfully!"
+          fi
+          
+          echo "🔐 Ensuring service principal has storage access..."
+          STORAGE_ACCOUNT_ID=$(az storage account show \
+            --name $STORAGE_ACCOUNT \
+            --resource-group $RESOURCE_GROUP \
+            --query id -o tsv)
+          
+          SP_OBJECT_ID=$(az ad sp show \
+            --id ${{ secrets.AZURE_CLIENT_ID }} \
+            --query id -o tsv)
+          
+          if ! az role assignment list \
+            --assignee $SP_OBJECT_ID \
+            --role "Storage Blob Data Contributor" \
+            --scope $STORAGE_ACCOUNT_ID \
+            --query "[0].id" -o tsv &>/dev/null; then
+            
+            echo "Granting Storage Blob Data Contributor role..."
+            az role assignment create \
+              --assignee $SP_OBJECT_ID \
+              --role "Storage Blob Data Contributor" \
+              --scope $STORAGE_ACCOUNT_ID
+            echo "✅ Role assigned successfully!"
+          else
+            echo "✅ Service principal already has required role"
+          fi
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Initializing Terraform with remote backend (prod environment)..."
+          terraform init -reconfigure \
+            -backend-config="key=prod.terraform.tfstate"
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Validating Terraform configuration..."
+          terraform validate
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Creating Terraform plan for prod environment..."
+          terraform plan -var-file=environments/prod/terraform.tfvars -out=tfplan
+          
+      - name: Production Deployment Warning
+        run: |
+          echo "=========================================="
+          echo "⚠️  PRODUCTION DEPLOYMENT WARNING"
+          echo "=========================================="
+          echo ""
+          echo "You are about to deploy to PRODUCTION"
+          echo "This will affect the live environment"
+          echo ""
+          echo "Waiting 10 seconds before proceeding..."
+          sleep 10
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Applying Terraform configuration to production..."
+          terraform apply -auto-approve tfplan
+          echo "✅ Production infrastructure created successfully!"
+
+      - name: Get Terraform Outputs
+        id: tf-output
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Reading Terraform outputs..."
+          
+          ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
+          ACR_NAME=$(terraform output -raw acr_name)
+          AKS_CLUSTER_NAME=$(terraform output -raw aks_cluster_name)
+          AKS_RESOURCE_GROUP=$(terraform output -raw aks_resource_group_name)
+          POSTGRES_HOST=$(terraform output -raw postgres_fqdn)
+          MANAGED_IDENTITY_CLIENT_ID=$(terraform output -raw workload_identity_client_id)
+          
+          echo "📦 ACR: $ACR_LOGIN_SERVER"
+          echo "☸️  AKS: $AKS_CLUSTER_NAME"
+          echo "🗄️  PostgreSQL: $POSTGRES_HOST"
+          
+          echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
+          echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
+          echo "aks_cluster_name=$AKS_CLUSTER_NAME" >> $GITHUB_OUTPUT
+          echo "aks_resource_group=$AKS_RESOURCE_GROUP" >> $GITHUB_OUTPUT
+          echo "postgres_host=$POSTGRES_HOST" >> $GITHUB_OUTPUT
+          echo "managed_identity_client_id=$MANAGED_IDENTITY_CLIENT_ID" >> $GITHUB_OUTPUT
+
+  # ============================================
+  # JOB 6: Build and Push Docker Images (PROD)
+  # ============================================
+  build-and-push-prod:
+    name: Build and Push Images (Prod)
+    needs: terraform-deploy-prod
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build microservices with Maven
+        run: |
+          echo "Building microservices for production..."
+          mvn clean package -DskipTests
+          echo "✅ Maven build complete!"
+
+      - name: Log in to Azure Container Registry
+        run: |
+          echo "Logging into ACR: ${{ needs.terraform-deploy-prod.outputs.acr_name }}"
+          az acr login --name ${{ needs.terraform-deploy-prod.outputs.acr_name }}
+          echo "✅ Logged into ACR!"
+
+      - name: Build and push Docker images
+        env:
+          ACR_LOGIN_SERVER: ${{ needs.terraform-deploy-prod.outputs.acr_login_server }}
+        run: |
+          echo "Building Docker images for production..."
+          
+          docker build -t $ACR_LOGIN_SERVER/customer-service:$IMAGE_TAG ./customer-service
+          docker push $ACR_LOGIN_SERVER/customer-service:$IMAGE_TAG
+          
+          docker build -t $ACR_LOGIN_SERVER/document-service:$IMAGE_TAG ./document-service
+          docker push $ACR_LOGIN_SERVER/document-service:$IMAGE_TAG
+          
+          docker build -t $ACR_LOGIN_SERVER/account-service:$IMAGE_TAG ./account-service
+          docker push $ACR_LOGIN_SERVER/account-service:$IMAGE_TAG
+          
+          docker build -t $ACR_LOGIN_SERVER/notification-service:$IMAGE_TAG ./notification-service
+          docker push $ACR_LOGIN_SERVER/notification-service:$IMAGE_TAG
+          
+          echo "✅ All production images pushed to ACR!"
+
+  # ============================================
+  # JOB 7: Deploy to AKS (PROD)
+  # ============================================
+  deploy-to-aks-prod:
+    name: Deploy to AKS (Prod)
+    needs: [terraform-deploy-prod, build-and-push-prod]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v3
+        with:
+          cluster-name: ${{ needs.terraform-deploy-prod.outputs.aks_cluster_name }}
+          resource-group: ${{ needs.terraform-deploy-prod.outputs.aks_resource_group }}
+
+      - name: Replace placeholders in k8s manifests
+        env:
+          ACR_LOGIN_SERVER: ${{ needs.terraform-deploy-prod.outputs.acr_login_server }}
+          POSTGRES_HOST: ${{ needs.terraform-deploy-prod.outputs.postgres_host }}
+          MANAGED_IDENTITY_CLIENT_ID: ${{ needs.terraform-deploy-prod.outputs.managed_identity_client_id }}
+        run: |
+          echo "Updating Kubernetes manifests for production..."
+          
+          sed -i "s|<ACR_LOGIN_SERVER>|$ACR_LOGIN_SERVER|g" k8s/*.yaml
+          sed -i "s|<TAG>|$IMAGE_TAG|g" k8s/*.yaml
+          sed -i "s|<MANAGED_IDENTITY_CLIENT_ID>|$MANAGED_IDENTITY_CLIENT_ID|g" k8s/*.yaml
+          sed -i "s|<POSTGRES_HOST>|$POSTGRES_HOST|g" k8s/*.yaml
+          
+          echo "✅ Manifests updated!"
+
+      - name: Deploy ConfigMaps and Secrets
+        run: |
+          echo "Deploying ConfigMaps and Secrets to production..."
+          kubectl apply -f k8s/customer-service-configmap.yaml
+          kubectl apply -f k8s/document-service-configmap.yaml
+          kubectl apply -f k8s/account-service-configmap.yaml
+          kubectl apply -f k8s/notification-service-configmap.yaml
+          kubectl apply -f k8s/customer-service-secret.yaml
+          kubectl apply -f k8s/document-service-secret.yaml
+          kubectl apply -f k8s/account-service-secret.yaml
+          kubectl apply -f k8s/notification-service-secret.yaml
+          echo "✅ ConfigMaps and Secrets deployed!"
+
+      - name: Deploy Services
+        run: |
+          echo "Deploying Kubernetes Services to production..."
+          kubectl apply -f k8s/customer-service-service.yaml
+          kubectl apply -f k8s/document-service-service.yaml
+          kubectl apply -f k8s/account-service-service.yaml
+          kubectl apply -f k8s/notification-service-service.yaml
+          echo "✅ Services deployed!"
+
+      - name: Deploy Applications
+        run: |
+          echo "Deploying applications to production AKS..."
+          kubectl apply -f k8s/customer-service-deployment.yaml
+          kubectl apply -f k8s/document-service-deployment.yaml
+          kubectl apply -f k8s/account-service-deployment.yaml
+          kubectl apply -f k8s/notification-service-deployment.yaml
+          echo "✅ Applications deployed!"
+
+      - name: Wait for deployments to be ready
+        run: |
+          echo "Waiting for production deployments to be ready..."
+          kubectl rollout status deployment/customer-service --timeout=300s
+          kubectl rollout status deployment/document-service --timeout=300s
+          kubectl rollout status deployment/account-service --timeout=300s
+          kubectl rollout status deployment/notification-service --timeout=300s
+          echo "✅ All deployments ready!"
+
+      - name: Get Service Information
+        run: |
+          echo "=========================================="
+          echo "Production Deployment Summary"
+          echo "=========================================="
+          echo ""
+          echo "📦 Pods:"
+          kubectl get pods -o wide
+          echo ""
+          echo "🌐 Services:"
+          kubectl get services -o wide
+          echo ""
+          echo "✅ Production deployment complete!"
