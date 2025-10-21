@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:  # Allow manual triggering
 
 # OIDC requires id-token: write permission
 permissions:
@@ -13,42 +14,71 @@ permissions:
 env:
   IMAGE_TAG: ${{ github.sha }}
   TF_WORKING_DIR: ./infrastructure
-  ENVIRONMENT: dev  # or prod
+  ENVIRONMENT: dev
 
 jobs:
-  build-and-push:
+  # ============================================
+  # JOB 1: Deploy Azure Infrastructure
+  # ============================================
+  terraform-deploy:
+    name: Deploy Azure Infrastructure
     runs-on: ubuntu-latest
     outputs:
-      acr_login_server: ${{ steps.terraform-outputs.outputs.acr_login_server }}
-      aks_cluster_name: ${{ steps.terraform-outputs.outputs.aks_cluster_name }}
-      aks_resource_group: ${{ steps.terraform-outputs.outputs.aks_resource_group }}
-      postgres_host: ${{ steps.terraform-outputs.outputs.postgres_host }}
-      managed_identity_client_id: ${{ steps.terraform-outputs.outputs.managed_identity_client_id }}
+      acr_login_server: ${{ steps.tf-output.outputs.acr_login_server }}
+      acr_name: ${{ steps.tf-output.outputs.acr_name }}
+      aks_cluster_name: ${{ steps.tf-output.outputs.aks_cluster_name }}
+      aks_resource_group: ${{ steps.tf-output.outputs.aks_resource_group }}
+      postgres_host: ${{ steps.tf-output.outputs.postgres_host }}
+      managed_identity_client_id: ${{ steps.tf-output.outputs.managed_identity_client_id }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # OIDC Authentication (No secrets needed!) ✅
       - name: Azure Login with OIDC
         uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          # No client-secret needed! GitHub generates OIDC token automatically
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
+          terraform_version: 1.6.0
           terraform_wrapper: false
 
-      - name: Get Terraform Outputs
-        id: terraform-outputs
+      - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
+          echo "Initializing Terraform..."
           terraform init
+
+      - name: Terraform Validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Validating Terraform configuration..."
+          terraform validate
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Creating Terraform plan..."
+          terraform plan -var-file=${{ env.ENVIRONMENT }}.tfvars -out=tfplan
           
-          # Get all outputs we need from Terraform state
+      - name: Terraform Apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Applying Terraform configuration..."
+          terraform apply -auto-approve tfplan
+          echo "✅ Infrastructure created successfully!"
+
+      - name: Get Terraform Outputs
+        id: tf-output
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Reading Terraform outputs..."
+          
+          # Get outputs from created infrastructure
           ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
           ACR_NAME=$(terraform output -raw acr_name)
           AKS_CLUSTER_NAME=$(terraform output -raw aks_cluster_name)
@@ -56,17 +86,35 @@ jobs:
           POSTGRES_HOST=$(terraform output -raw postgres_fqdn)
           MANAGED_IDENTITY_CLIENT_ID=$(terraform output -raw workload_identity_client_id)
           
-          # Set as outputs for next job
+          echo "📦 ACR: $ACR_LOGIN_SERVER"
+          echo "☸️  AKS: $AKS_CLUSTER_NAME"
+          echo "🗄️  PostgreSQL: $POSTGRES_HOST"
+          
+          # Set as job outputs
           echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
           echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
           echo "aks_cluster_name=$AKS_CLUSTER_NAME" >> $GITHUB_OUTPUT
           echo "aks_resource_group=$AKS_RESOURCE_GROUP" >> $GITHUB_OUTPUT
           echo "postgres_host=$POSTGRES_HOST" >> $GITHUB_OUTPUT
           echo "managed_identity_client_id=$MANAGED_IDENTITY_CLIENT_ID" >> $GITHUB_OUTPUT
-          
-          # Also set as env vars for this job
-          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> $GITHUB_ENV
-          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_ENV
+
+  # ============================================
+  # JOB 2: Build and Push Docker Images
+  # ============================================
+  build-and-push:
+    name: Build and Push Images
+    needs: terraform-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
@@ -75,34 +123,57 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      - name: Build microservices
+      - name: Build microservices with Maven
         run: |
+          echo "Building microservices..."
           mvn clean package -DskipTests
+          echo "✅ Maven build complete!"
 
-      - name: Log in to Azure Container Registry (using Service Principal)
+      - name: Log in to Azure Container Registry
         run: |
-          # ACR login using the service principal that's already logged in
-          az acr login --name ${{ env.ACR_NAME }}
+          echo "Logging into ACR: ${{ needs.terraform-deploy.outputs.acr_name }}"
+          az acr login --name ${{ needs.terraform-deploy.outputs.acr_name }}
+          echo "✅ Logged into ACR!"
 
-      - name: Build and push images
+      - name: Build and push Docker images
+        env:
+          ACR_LOGIN_SERVER: ${{ needs.terraform-deploy.outputs.acr_login_server }}
         run: |
-          docker build -t ${{ env.ACR_LOGIN_SERVER }}/customer-service:$IMAGE_TAG ./customer-service
-          docker build -t ${{ env.ACR_LOGIN_SERVER }}/document-service:$IMAGE_TAG ./document-service
-          docker build -t ${{ env.ACR_LOGIN_SERVER }}/account-service:$IMAGE_TAG ./account-service
-          docker build -t ${{ env.ACR_LOGIN_SERVER }}/notification-service:$IMAGE_TAG ./notification-service
-          docker push ${{ env.ACR_LOGIN_SERVER }}/customer-service:$IMAGE_TAG
-          docker push ${{ env.ACR_LOGIN_SERVER }}/document-service:$IMAGE_TAG
-          docker push ${{ env.ACR_LOGIN_SERVER }}/account-service:$IMAGE_TAG
-          docker push ${{ env.ACR_LOGIN_SERVER }}/notification-service:$IMAGE_TAG
+          echo "Building Docker images..."
+          
+          # Customer Service
+          echo "Building customer-service..."
+          docker build -t $ACR_LOGIN_SERVER/customer-service:$IMAGE_TAG ./customer-service
+          docker push $ACR_LOGIN_SERVER/customer-service:$IMAGE_TAG
+          
+          # Document Service
+          echo "Building document-service..."
+          docker build -t $ACR_LOGIN_SERVER/document-service:$IMAGE_TAG ./document-service
+          docker push $ACR_LOGIN_SERVER/document-service:$IMAGE_TAG
+          
+          # Account Service
+          echo "Building account-service..."
+          docker build -t $ACR_LOGIN_SERVER/account-service:$IMAGE_TAG ./account-service
+          docker push $ACR_LOGIN_SERVER/account-service:$IMAGE_TAG
+          
+          # Notification Service
+          echo "Building notification-service..."
+          docker build -t $ACR_LOGIN_SERVER/notification-service:$IMAGE_TAG ./notification-service
+          docker push $ACR_LOGIN_SERVER/notification-service:$IMAGE_TAG
+          
+          echo "✅ All images pushed to ACR!"
 
-  deploy:
-    needs: build-and-push
+  # ============================================
+  # JOB 3: Deploy to AKS
+  # ============================================
+  deploy-to-aks:
+    name: Deploy to AKS
+    needs: [terraform-deploy, build-and-push]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # OIDC Authentication (No secrets needed!) ✅
       - name: Azure Login with OIDC
         uses: azure/login@v1
         with:
@@ -113,15 +184,16 @@ jobs:
       - name: Set AKS context
         uses: azure/aks-set-context@v3
         with:
-          cluster-name: ${{ needs.build-and-push.outputs.aks_cluster_name }}
-          resource-group: ${{ needs.build-and-push.outputs.aks_resource_group }}
+          cluster-name: ${{ needs.terraform-deploy.outputs.aks_cluster_name }}
+          resource-group: ${{ needs.terraform-deploy.outputs.aks_resource_group }}
 
-      - name: Replace placeholders in k8s files
+      - name: Replace placeholders in k8s manifests
+        env:
+          ACR_LOGIN_SERVER: ${{ needs.terraform-deploy.outputs.acr_login_server }}
+          POSTGRES_HOST: ${{ needs.terraform-deploy.outputs.postgres_host }}
+          MANAGED_IDENTITY_CLIENT_ID: ${{ needs.terraform-deploy.outputs.managed_identity_client_id }}
         run: |
-          # Get values from previous job's outputs
-          ACR_LOGIN_SERVER="${{ needs.build-and-push.outputs.acr_login_server }}"
-          POSTGRES_HOST="${{ needs.build-and-push.outputs.postgres_host }}"
-          MANAGED_IDENTITY_CLIENT_ID="${{ needs.build-and-push.outputs.managed_identity_client_id }}"
+          echo "Updating Kubernetes manifests..."
           
           # Replace ACR and image tags
           sed -i "s|<ACR_LOGIN_SERVER>|$ACR_LOGIN_SERVER|g" k8s/*.yaml
@@ -130,13 +202,14 @@ jobs:
           # Replace managed identity for workload identity
           sed -i "s|<MANAGED_IDENTITY_CLIENT_ID>|$MANAGED_IDENTITY_CLIENT_ID|g" k8s/*.yaml
           
-          # Replace postgres host (no passwords needed - using managed identity!)
+          # Replace postgres host (no passwords - using managed identity!)
           sed -i "s|<POSTGRES_HOST>|$POSTGRES_HOST|g" k8s/*.yaml
           
-          # Note: NO PostgreSQL passwords! Applications use Azure AD authentication via Managed Identity
+          echo "✅ Manifests updated!"
 
       - name: Deploy ConfigMaps and Secrets
         run: |
+          echo "Deploying ConfigMaps and Secrets..."
           kubectl apply -f k8s/customer-service-configmap.yaml
           kubectl apply -f k8s/document-service-configmap.yaml
           kubectl apply -f k8s/account-service-configmap.yaml
@@ -145,29 +218,45 @@ jobs:
           kubectl apply -f k8s/document-service-secret.yaml
           kubectl apply -f k8s/account-service-secret.yaml
           kubectl apply -f k8s/notification-service-secret.yaml
+          echo "✅ ConfigMaps and Secrets deployed!"
 
       - name: Deploy Services
         run: |
+          echo "Deploying Kubernetes Services..."
           kubectl apply -f k8s/customer-service-service.yaml
           kubectl apply -f k8s/document-service-service.yaml
           kubectl apply -f k8s/account-service-service.yaml
           kubectl apply -f k8s/notification-service-service.yaml
+          echo "✅ Services deployed!"
 
-      - name: Deploy to AKS
+      - name: Deploy Applications
         run: |
+          echo "Deploying applications to AKS..."
           kubectl apply -f k8s/customer-service-deployment.yaml
           kubectl apply -f k8s/document-service-deployment.yaml
           kubectl apply -f k8s/account-service-deployment.yaml
           kubectl apply -f k8s/notification-service-deployment.yaml
+          echo "✅ Applications deployed!"
 
-      - name: Wait for deployments
+      - name: Wait for deployments to be ready
         run: |
+          echo "Waiting for deployments to be ready..."
           kubectl rollout status deployment/customer-service --timeout=300s
           kubectl rollout status deployment/document-service --timeout=300s
           kubectl rollout status deployment/account-service --timeout=300s
           kubectl rollout status deployment/notification-service --timeout=300s
+          echo "✅ All deployments ready!"
 
-      - name: Get Service IPs
+      - name: Get Service Information
         run: |
-          echo "=== Service External IPs ==="
+          echo "=========================================="
+          echo "Deployment Summary"
+          echo "=========================================="
+          echo ""
+          echo "📦 Pods:"
+          kubectl get pods -o wide
+          echo ""
+          echo "🌐 Services:"
           kubectl get services -o wide
+          echo ""
+          echo "✅ Deployment complete!"
