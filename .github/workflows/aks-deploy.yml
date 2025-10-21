@@ -153,6 +153,61 @@ jobs:
           echo "Validating Terraform configuration..."
           terraform validate
 
+      - name: Check and Import Existing Resources
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        continue-on-error: true
+        run: |
+          echo "Checking for existing resources that need to be imported..."
+          
+          # Source the tfvars to get variables
+          ENVIRONMENT="dev"
+          LOCATION="eastus"
+          PROJECT="account-opening"
+          
+          # Check if resource group exists
+          RG_NAME="rg-${PROJECT}-${ENVIRONMENT}-eus"
+          
+          if az group show --name $RG_NAME &>/dev/null; then
+            echo "⚠️  Resource group $RG_NAME already exists"
+            
+            # Check if it's in Terraform state
+            if ! terraform state list | grep -q "azurerm_resource_group.rg"; then
+              echo "📥 Importing resource group into Terraform state..."
+              RG_ID=$(az group show --name $RG_NAME --query id -o tsv)
+              terraform import -var-file=environments/dev/terraform.tfvars \
+                azurerm_resource_group.rg "$RG_ID" || echo "Import may have failed, continuing..."
+            else
+              echo "✅ Resource group already in Terraform state"
+            fi
+          else
+            echo "✅ Resource group doesn't exist yet, will be created"
+          fi
+          
+          # Check and import other critical resources if needed
+          ACR_NAME="acr${PROJECT}${ENVIRONMENT}eus"
+          if az acr show --name $ACR_NAME &>/dev/null 2>&1; then
+            echo "⚠️  ACR $ACR_NAME already exists"
+            if ! terraform state list | grep -q "azurerm_container_registry.acr"; then
+              echo "📥 Importing ACR into Terraform state..."
+              ACR_ID=$(az acr show --name $ACR_NAME --query id -o tsv)
+              terraform import -var-file=environments/dev/terraform.tfvars \
+                azurerm_container_registry.acr "$ACR_ID" || echo "Import may have failed, continuing..."
+            fi
+          fi
+          
+          AKS_NAME="aks-${PROJECT}-${ENVIRONMENT}-eus"
+          if az aks show --name $AKS_NAME --resource-group $RG_NAME &>/dev/null 2>&1; then
+            echo "⚠️  AKS cluster $AKS_NAME already exists"
+            if ! terraform state list | grep -q "azurerm_kubernetes_cluster.aks"; then
+              echo "📥 Importing AKS into Terraform state..."
+              AKS_ID=$(az aks show --name $AKS_NAME --resource-group $RG_NAME --query id -o tsv)
+              terraform import -var-file=environments/dev/terraform.tfvars \
+                azurerm_kubernetes_cluster.aks "$AKS_ID" || echo "Import may have failed, continuing..."
+            fi
+          fi
+          
+          echo "✅ Resource import check complete"
+
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
@@ -507,6 +562,57 @@ jobs:
         run: |
           echo "Validating Terraform configuration..."
           terraform validate
+
+      - name: Check and Import Existing Resources
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        continue-on-error: true
+        run: |
+          echo "Checking for existing production resources that need to be imported..."
+          
+          ENVIRONMENT="prod"
+          LOCATION="eastus"
+          PROJECT="account-opening"
+          
+          RG_NAME="rg-${PROJECT}-${ENVIRONMENT}-eus"
+          
+          if az group show --name $RG_NAME &>/dev/null; then
+            echo "⚠️  Resource group $RG_NAME already exists"
+            
+            if ! terraform state list | grep -q "azurerm_resource_group.rg"; then
+              echo "📥 Importing resource group into Terraform state..."
+              RG_ID=$(az group show --name $RG_NAME --query id -o tsv)
+              terraform import -var-file=environments/prod/terraform.tfvars \
+                azurerm_resource_group.rg "$RG_ID" || echo "Import may have failed, continuing..."
+            else
+              echo "✅ Resource group already in Terraform state"
+            fi
+          else
+            echo "✅ Resource group doesn't exist yet, will be created"
+          fi
+          
+          ACR_NAME="acr${PROJECT}${ENVIRONMENT}eus"
+          if az acr show --name $ACR_NAME &>/dev/null 2>&1; then
+            echo "⚠️  ACR $ACR_NAME already exists"
+            if ! terraform state list | grep -q "azurerm_container_registry.acr"; then
+              echo "📥 Importing ACR into Terraform state..."
+              ACR_ID=$(az acr show --name $ACR_NAME --query id -o tsv)
+              terraform import -var-file=environments/prod/terraform.tfvars \
+                azurerm_container_registry.acr "$ACR_ID" || echo "Import may have failed, continuing..."
+            fi
+          fi
+          
+          AKS_NAME="aks-${PROJECT}-${ENVIRONMENT}-eus"
+          if az aks show --name $AKS_NAME --resource-group $RG_NAME &>/dev/null 2>&1; then
+            echo "⚠️  AKS cluster $AKS_NAME already exists"
+            if ! terraform state list | grep -q "azurerm_kubernetes_cluster.aks"; then
+              echo "📥 Importing AKS into Terraform state..."
+              AKS_ID=$(az aks show --name $AKS_NAME --resource-group $RG_NAME --query id -o tsv)
+              terraform import -var-file=environments/prod/terraform.tfvars \
+                azurerm_kubernetes_cluster.aks "$AKS_ID" || echo "Import may have failed, continuing..."
+            fi
+          fi
+          
+          echo "✅ Resource import check complete"
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
