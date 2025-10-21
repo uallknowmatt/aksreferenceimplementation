@@ -1,0 +1,194 @@
+name: Destroy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to destroy (dev or prod)'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_WORKING_DIR: ./infrastructure
+
+jobs:
+  # ============================================
+  # Validation Job - Ensure proper confirmation
+  # ============================================
+  validate-destroy:
+    name: Validate Destroy Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+            echo "❌ Confirmation failed!"
+            echo ""
+            echo "You must type DESTROY (all caps) to confirm destruction"
+            echo "You typed: ${{ github.event.inputs.confirm_destroy }}"
+            echo ""
+            exit 1
+          fi
+          
+          echo "✅ Confirmation validated"
+          echo ""
+          echo "⚠️  WARNING: This will destroy the following environment:"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo ""
+
+  # ============================================
+  # Destroy Infrastructure
+  # ============================================
+  destroy-infrastructure:
+    name: Destroy ${{ github.event.inputs.environment }} Infrastructure
+    needs: validate-destroy
+    runs-on: ubuntu-latest
+    environment:
+      name: destroy-${{ github.event.inputs.environment }}
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Ensure Backend Exists
+        run: |
+          echo "Checking Terraform state backend..."
+          
+          RESOURCE_GROUP="terraform-state-rg"
+          STORAGE_ACCOUNT="tfstateaccountopening"
+          
+          if ! az storage account show --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP &>/dev/null; then
+            echo "⚠️  Backend storage doesn't exist"
+            echo "Nothing to destroy (resources may have been manually deleted)"
+            exit 0
+          fi
+          
+          echo "✅ Backend exists"
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Initializing Terraform with ${{ github.event.inputs.environment }} state..."
+          terraform init -reconfigure \
+            -backend-config="key=${{ github.event.inputs.environment }}.terraform.tfstate"
+
+      - name: Show Current State
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "=========================================="
+          echo "Current resources in state:"
+          echo "=========================================="
+          terraform state list || echo "No resources in state"
+
+      - name: Terraform Plan Destroy
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Creating destruction plan for ${{ github.event.inputs.environment }}..."
+          terraform plan -destroy \
+            -var-file=environments/${{ github.event.inputs.environment }}/terraform.tfvars \
+            -out=destroy.tfplan
+          
+          echo ""
+          echo "=========================================="
+          echo "Resources that will be DESTROYED:"
+          echo "=========================================="
+          terraform show destroy.tfplan
+
+      - name: Final Warning
+        run: |
+          echo "=========================================="
+          echo "⚠️⚠️⚠️  FINAL WARNING  ⚠️⚠️⚠️"
+          echo "=========================================="
+          echo ""
+          echo "About to DESTROY all resources in:"
+          echo "  Environment: ${{ github.event.inputs.environment }}"
+          echo "  Resource Group: rg-account-opening-${{ github.event.inputs.environment }}-eus"
+          echo ""
+          echo "This includes:"
+          echo "  - AKS Cluster"
+          echo "  - Container Registry (and all images)"
+          echo "  - PostgreSQL Server (and all databases)"
+          echo "  - Virtual Network"
+          echo "  - All other infrastructure"
+          echo ""
+          echo "⚠️  DATA WILL BE LOST"
+          echo "⚠️  THIS CANNOT BE UNDONE"
+          echo ""
+          echo "Waiting 30 seconds before proceeding..."
+          sleep 30
+
+      - name: Terraform Destroy
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Destroying infrastructure..."
+          terraform apply -auto-approve destroy.tfplan
+          
+          echo ""
+          echo "=========================================="
+          echo "✅ Infrastructure destroyed successfully"
+          echo "=========================================="
+
+      - name: Verify Destruction
+        run: |
+          echo "Verifying resource group is deleted..."
+          
+          RG_NAME="rg-account-opening-${{ github.event.inputs.environment }}-eus"
+          
+          if az group show --name $RG_NAME &>/dev/null; then
+            echo "⚠️  Resource group still exists!"
+            echo "Some resources may not have been deleted"
+            echo "Check Azure Portal for remaining resources"
+          else
+            echo "✅ Resource group confirmed deleted"
+          fi
+
+      - name: Cleanup Summary
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "Destruction Complete"
+          echo "=========================================="
+          echo ""
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Status: Destroyed"
+          echo ""
+          echo "State file remains in:"
+          echo "  Storage: tfstateaccountopening"
+          echo "  File: ${{ github.event.inputs.environment }}.terraform.tfstate"
+          echo ""
+          echo "To completely clean up:"
+          echo "1. Verify no resources remain in Azure Portal"
+          echo "2. Optionally delete the state file from storage"
+          echo ""
+          echo "To recreate the environment:"
+          echo "1. Push to main branch (for dev)"
+          echo "2. Or run the deployment workflow manually"
+          echo ""
