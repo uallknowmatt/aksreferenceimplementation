@@ -1,32 +1,42 @@
-# Azure Container Registry and private endpoint
+# ============================================
+# Azure Container Registry
+# ============================================
+# Depends on: Resource Group
+# Used by: AKS for pulling Docker images, GitHub Actions for pushing images
+
 resource "azurerm_container_registry" "acr" {
-  name                = "${var.environment}${var.acr_name}"
+  name                = local.acr_name
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "Standard"
-  admin_enabled       = false # Avoid admin user, use managed identity
-  tags = {
-    environment = var.environment
-    owner       = var.owner
-    project     = var.project
-  }
+  admin_enabled       = false  # Use managed identity and RBAC instead
+  tags                = local.common_tags
+
+  depends_on = [azurerm_resource_group.rg]
 }
 
+# ============================================
+# ACR Private Endpoint
+# ============================================
+# Depends on: ACR, ACR Subnet
+# Provides private connectivity to ACR from VNet
+
 resource "azurerm_private_endpoint" "acr_pe" {
-  name                = "${var.environment}-acr-pe"
+  name                = local.acr_pe_name
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   subnet_id           = azurerm_subnet.acr_subnet.id
+  tags                = local.common_tags
 
   private_service_connection {
-    name                           = "${var.environment}-acr-psc"
-    private_connection_resource_id  = azurerm_container_registry.acr.id
+    name                           = "${local.acr_pe_name}-connection"
+    private_connection_resource_id = azurerm_container_registry.acr.id
     is_manual_connection           = false
     subresource_names              = ["registry"]
   }
-  tags = {
-    environment = var.environment
-    owner       = var.owner
-    project     = var.project
-  }
+
+  depends_on = [
+    azurerm_container_registry.acr,
+    azurerm_subnet.acr_subnet
+  ]
 }

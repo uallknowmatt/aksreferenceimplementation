@@ -11,27 +11,20 @@ variable "owner" {
 }
 
 variable "project" {
-  description = "Project name"
+  description = "Project name (used in resource naming)"
   type        = string
   default     = "account-opening"
-}
-
-variable "resource_group_name" {
-  description = "Base name of the resource group"
-  type        = string
-  default     = "bank-account-opening-rg"
 }
 
 variable "location" {
   description = "Azure region location"
   type        = string
   default     = "eastus"
-}
-
-variable "cluster_name" {
-  description = "Base name of the AKS cluster"
-  type        = string
-  default     = "bank-aks-cluster"
+  
+  validation {
+    condition     = contains(["eastus", "eastus2", "westus", "westus2", "centralus", "northeurope", "westeurope"], var.location)
+    error_message = "Location must be one of the supported Azure regions."
+  }
 }
 
 variable "node_count" {
@@ -71,27 +64,27 @@ variable "private_cluster_enabled" {
 }
 
 variable "api_server_authorized_ip_ranges" {
-  description = "List of authorized IP ranges for AKS API server"
+  description = "List of authorized IP ranges for AKS API server (empty for public access in dev)"
   type        = list(string)
-  default     = ["<YOUR_IP>"]
-}
-
-variable "acr_name" {
-  description = "Base name of Azure Container Registry"
-  type        = string
-  default     = "bankaccountregistry"
+  default     = []
 }
 
 variable "db_admin_username" {
   description = "PostgreSQL admin username"
   type        = string
-  default     = "pgadmin"
+  default     = "psqladmin"
+  sensitive   = true
 }
 
 variable "db_admin_password" {
-  description = "PostgreSQL admin password"
+  description = "PostgreSQL admin password (minimum 8 characters)"
   type        = string
-  default     = "ChangeMe123!"
+  sensitive   = true
+  
+  validation {
+    condition     = length(var.db_admin_password) >= 8
+    error_message = "Database password must be at least 8 characters long."
+  }
 }
 
 variable "db_sku_name" {

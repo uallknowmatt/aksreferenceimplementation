@@ -65,6 +65,7 @@ output "postgres_fqdn" {
 
 output "postgres_admin_username" {
   value       = var.db_admin_username
+  sensitive   = true
   description = "PostgreSQL admin username (for GitHub secrets: POSTGRES_USERNAME)"
 }
 
