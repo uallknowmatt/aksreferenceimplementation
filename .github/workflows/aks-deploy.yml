@@ -157,56 +157,146 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         continue-on-error: true
         run: |
-          echo "Checking for existing resources that need to be imported..."
+          echo "=========================================="
+          echo "Checking for existing resources to import"
+          echo "=========================================="
           
-          # Source the tfvars to get variables
           ENVIRONMENT="dev"
           LOCATION="eastus"
           PROJECT="account-opening"
+          LOC_CODE="eus"
           
-          # Check if resource group exists
-          RG_NAME="rg-${PROJECT}-${ENVIRONMENT}-eus"
+          # Resource names following locals.tf patterns
+          RG_NAME="rg-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          ACR_NAME="acr$(echo $PROJECT | tr -d '-')${ENVIRONMENT}${LOC_CODE}"
+          AKS_NAME="aks-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          VNET_NAME="vnet-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          POSTGRES_NAME="psql-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          LOG_NAME="log-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          IDENTITY_NAME="id-${PROJECT}-${ENVIRONMENT}-workload"
+          NSG_NAME="${ENVIRONMENT}-aks-nsg"
           
-          if az group show --name $RG_NAME &>/dev/null; then
-            echo "⚠️  Resource group $RG_NAME already exists"
+          # Function to import resource if exists and not in state
+          import_if_needed() {
+            local RESOURCE_TYPE=$1
+            local TERRAFORM_ADDRESS=$2
+            local AZURE_NAME=$3
+            local AZURE_COMMAND=$4
             
-            # Check if it's in Terraform state
-            if ! terraform state list | grep -q "azurerm_resource_group.rg"; then
-              echo "📥 Importing resource group into Terraform state..."
-              RG_ID=$(az group show --name $RG_NAME --query id -o tsv)
-              terraform import -var-file=environments/dev/terraform.tfvars \
-                azurerm_resource_group.rg "$RG_ID" || echo "Import may have failed, continuing..."
+            echo ""
+            echo "Checking: $RESOURCE_TYPE ($AZURE_NAME)"
+            
+            if eval "$AZURE_COMMAND" &>/dev/null; then
+              echo "  ✓ Resource exists in Azure"
+              
+              if terraform state list | grep -q "^${TERRAFORM_ADDRESS}$"; then
+                echo "  ✓ Already in Terraform state"
+              else
+                echo "  ⚠ Not in state - importing..."
+                RESOURCE_ID=$(eval "$AZURE_COMMAND --query id -o tsv")
+                echo "  ID: $RESOURCE_ID"
+                
+                if terraform import -var-file=environments/dev/terraform.tfvars \
+                  "$TERRAFORM_ADDRESS" "$RESOURCE_ID" 2>&1 | tee /tmp/import.log; then
+                  echo "  ✓ Import successful"
+                else
+                  echo "  ✗ Import failed (continuing...)"
+                  cat /tmp/import.log
+                fi
+              fi
             else
-              echo "✅ Resource group already in Terraform state"
+              echo "  ○ Does not exist (will be created)"
             fi
-          else
-            echo "✅ Resource group doesn't exist yet, will be created"
-          fi
+          }
           
-          # Check and import other critical resources if needed
-          ACR_NAME="acr${PROJECT}${ENVIRONMENT}eus"
-          if az acr show --name $ACR_NAME &>/dev/null 2>&1; then
-            echo "⚠️  ACR $ACR_NAME already exists"
-            if ! terraform state list | grep -q "azurerm_container_registry.acr"; then
-              echo "📥 Importing ACR into Terraform state..."
-              ACR_ID=$(az acr show --name $ACR_NAME --query id -o tsv)
-              terraform import -var-file=environments/dev/terraform.tfvars \
-                azurerm_container_registry.acr "$ACR_ID" || echo "Import may have failed, continuing..."
-            fi
-          fi
+          # Import all resources
+          import_if_needed "Resource Group" \
+            "azurerm_resource_group.rg" \
+            "$RG_NAME" \
+            "az group show --name $RG_NAME"
           
-          AKS_NAME="aks-${PROJECT}-${ENVIRONMENT}-eus"
-          if az aks show --name $AKS_NAME --resource-group $RG_NAME &>/dev/null 2>&1; then
-            echo "⚠️  AKS cluster $AKS_NAME already exists"
-            if ! terraform state list | grep -q "azurerm_kubernetes_cluster.aks"; then
-              echo "📥 Importing AKS into Terraform state..."
-              AKS_ID=$(az aks show --name $AKS_NAME --resource-group $RG_NAME --query id -o tsv)
-              terraform import -var-file=environments/dev/terraform.tfvars \
-                azurerm_kubernetes_cluster.aks "$AKS_ID" || echo "Import may have failed, continuing..."
-            fi
-          fi
+          import_if_needed "Virtual Network" \
+            "azurerm_virtual_network.vnet" \
+            "$VNET_NAME" \
+            "az network vnet show --name $VNET_NAME --resource-group $RG_NAME"
           
-          echo "✅ Resource import check complete"
+          import_if_needed "AKS Subnet" \
+            "azurerm_subnet.aks_subnet" \
+            "aks-subnet" \
+            "az network vnet subnet show --name aks-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "ACR Subnet" \
+            "azurerm_subnet.acr_subnet" \
+            "acr-subnet" \
+            "az network vnet subnet show --name acr-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "Network Security Group" \
+            "azurerm_network_security_group.aks_nsg" \
+            "$NSG_NAME" \
+            "az network nsg show --name $NSG_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "NSG Association" \
+            "azurerm_subnet_network_security_group_association.aks_nsg_assoc" \
+            "aks-subnet-nsg" \
+            "az network vnet subnet show --name aks-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME --query 'networkSecurityGroup.id'"
+          
+          import_if_needed "Log Analytics Workspace" \
+            "azurerm_log_analytics_workspace.aks_logs" \
+            "$LOG_NAME" \
+            "az monitor log-analytics workspace show --workspace-name $LOG_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "Container Registry" \
+            "azurerm_container_registry.acr" \
+            "$ACR_NAME" \
+            "az acr show --name $ACR_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "ACR Private Endpoint" \
+            "azurerm_private_endpoint.acr_endpoint" \
+            "pe-$ACR_NAME" \
+            "az network private-endpoint show --name pe-$ACR_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "PostgreSQL Server" \
+            "azurerm_postgresql_flexible_server.db" \
+            "$POSTGRES_NAME" \
+            "az postgres flexible-server show --name $POSTGRES_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "PostgreSQL Database: customerdb" \
+            "azurerm_postgresql_flexible_server_database.customerdb" \
+            "customerdb" \
+            "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name customerdb"
+          
+          import_if_needed "PostgreSQL Database: documentdb" \
+            "azurerm_postgresql_flexible_server_database.documentdb" \
+            "documentdb" \
+            "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name documentdb"
+          
+          import_if_needed "PostgreSQL Database: accountdb" \
+            "azurerm_postgresql_flexible_server_database.accountdb" \
+            "accountdb" \
+            "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name accountdb"
+          
+          import_if_needed "PostgreSQL Database: notificationdb" \
+            "azurerm_postgresql_flexible_server_database.notificationdb" \
+            "notificationdb" \
+            "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name notificationdb"
+          
+          import_if_needed "Workload Identity" \
+            "azurerm_user_assigned_identity.workload_identity" \
+            "$IDENTITY_NAME" \
+            "az identity show --name $IDENTITY_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "AKS Cluster" \
+            "azurerm_kubernetes_cluster.aks" \
+            "$AKS_NAME" \
+            "az aks show --name $AKS_NAME --resource-group $RG_NAME"
+          
+          # Note: Some resources like role assignments and federated credentials
+          # are harder to check/import, so we let Terraform handle them
+          
+          echo ""
+          echo "=========================================="
+          echo "✓ Resource import check complete"
+          echo "=========================================="
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -567,52 +657,140 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         continue-on-error: true
         run: |
-          echo "Checking for existing production resources that need to be imported..."
+          echo "=========================================="
+          echo "Checking for existing production resources"
+          echo "=========================================="
           
           ENVIRONMENT="prod"
           LOCATION="eastus"
           PROJECT="account-opening"
+          LOC_CODE="eus"
           
-          RG_NAME="rg-${PROJECT}-${ENVIRONMENT}-eus"
+          RG_NAME="rg-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          ACR_NAME="acr$(echo $PROJECT | tr -d '-')${ENVIRONMENT}${LOC_CODE}"
+          AKS_NAME="aks-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          VNET_NAME="vnet-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          POSTGRES_NAME="psql-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          LOG_NAME="log-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
+          IDENTITY_NAME="id-${PROJECT}-${ENVIRONMENT}-workload"
+          NSG_NAME="${ENVIRONMENT}-aks-nsg"
           
-          if az group show --name $RG_NAME &>/dev/null; then
-            echo "⚠️  Resource group $RG_NAME already exists"
+          import_if_needed() {
+            local RESOURCE_TYPE=$1
+            local TERRAFORM_ADDRESS=$2
+            local AZURE_NAME=$3
+            local AZURE_COMMAND=$4
             
-            if ! terraform state list | grep -q "azurerm_resource_group.rg"; then
-              echo "📥 Importing resource group into Terraform state..."
-              RG_ID=$(az group show --name $RG_NAME --query id -o tsv)
-              terraform import -var-file=environments/prod/terraform.tfvars \
-                azurerm_resource_group.rg "$RG_ID" || echo "Import may have failed, continuing..."
+            echo ""
+            echo "Checking: $RESOURCE_TYPE ($AZURE_NAME)"
+            
+            if eval "$AZURE_COMMAND" &>/dev/null; then
+              echo "  ✓ Resource exists in Azure"
+              
+              if terraform state list | grep -q "^${TERRAFORM_ADDRESS}$"; then
+                echo "  ✓ Already in Terraform state"
+              else
+                echo "  ⚠ Not in state - importing..."
+                RESOURCE_ID=$(eval "$AZURE_COMMAND --query id -o tsv")
+                echo "  ID: $RESOURCE_ID"
+                
+                if terraform import -var-file=environments/prod/terraform.tfvars \
+                  "$TERRAFORM_ADDRESS" "$RESOURCE_ID" 2>&1 | tee /tmp/import.log; then
+                  echo "  ✓ Import successful"
+                else
+                  echo "  ✗ Import failed (continuing...)"
+                  cat /tmp/import.log
+                fi
+              fi
             else
-              echo "✅ Resource group already in Terraform state"
+              echo "  ○ Does not exist (will be created)"
             fi
-          else
-            echo "✅ Resource group doesn't exist yet, will be created"
-          fi
+          }
           
-          ACR_NAME="acr${PROJECT}${ENVIRONMENT}eus"
-          if az acr show --name $ACR_NAME &>/dev/null 2>&1; then
-            echo "⚠️  ACR $ACR_NAME already exists"
-            if ! terraform state list | grep -q "azurerm_container_registry.acr"; then
-              echo "📥 Importing ACR into Terraform state..."
-              ACR_ID=$(az acr show --name $ACR_NAME --query id -o tsv)
-              terraform import -var-file=environments/prod/terraform.tfvars \
-                azurerm_container_registry.acr "$ACR_ID" || echo "Import may have failed, continuing..."
-            fi
-          fi
+          import_if_needed "Resource Group" \
+            "azurerm_resource_group.rg" \
+            "$RG_NAME" \
+            "az group show --name $RG_NAME"
           
-          AKS_NAME="aks-${PROJECT}-${ENVIRONMENT}-eus"
-          if az aks show --name $AKS_NAME --resource-group $RG_NAME &>/dev/null 2>&1; then
-            echo "⚠️  AKS cluster $AKS_NAME already exists"
-            if ! terraform state list | grep -q "azurerm_kubernetes_cluster.aks"; then
-              echo "📥 Importing AKS into Terraform state..."
-              AKS_ID=$(az aks show --name $AKS_NAME --resource-group $RG_NAME --query id -o tsv)
-              terraform import -var-file=environments/prod/terraform.tfvars \
-                azurerm_kubernetes_cluster.aks "$AKS_ID" || echo "Import may have failed, continuing..."
-            fi
-          fi
+          import_if_needed "Virtual Network" \
+            "azurerm_virtual_network.vnet" \
+            "$VNET_NAME" \
+            "az network vnet show --name $VNET_NAME --resource-group $RG_NAME"
           
-          echo "✅ Resource import check complete"
+          import_if_needed "AKS Subnet" \
+            "azurerm_subnet.aks_subnet" \
+            "aks-subnet" \
+            "az network vnet subnet show --name aks-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "ACR Subnet" \
+            "azurerm_subnet.acr_subnet" \
+            "acr-subnet" \
+            "az network vnet subnet show --name acr-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "Network Security Group" \
+            "azurerm_network_security_group.aks_nsg" \
+            "$NSG_NAME" \
+            "az network nsg show --name $NSG_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "NSG Association" \
+            "azurerm_subnet_network_security_group_association.aks_nsg_assoc" \
+            "aks-subnet-nsg" \
+            "az network vnet subnet show --name aks-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME --query 'networkSecurityGroup.id'"
+          
+          import_if_needed "Log Analytics Workspace" \
+            "azurerm_log_analytics_workspace.aks_logs" \
+            "$LOG_NAME" \
+            "az monitor log-analytics workspace show --workspace-name $LOG_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "Container Registry" \
+            "azurerm_container_registry.acr" \
+            "$ACR_NAME" \
+            "az acr show --name $ACR_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "ACR Private Endpoint" \
+            "azurerm_private_endpoint.acr_endpoint" \
+            "pe-$ACR_NAME" \
+            "az network private-endpoint show --name pe-$ACR_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "PostgreSQL Server" \
+            "azurerm_postgresql_flexible_server.db" \
+            "$POSTGRES_NAME" \
+            "az postgres flexible-server show --name $POSTGRES_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "PostgreSQL Database: customerdb" \
+            "azurerm_postgresql_flexible_server_database.customerdb" \
+            "customerdb" \
+            "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name customerdb"
+          
+          import_if_needed "PostgreSQL Database: documentdb" \
+            "azurerm_postgresql_flexible_server_database.documentdb" \
+            "documentdb" \
+            "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name documentdb"
+          
+          import_if_needed "PostgreSQL Database: accountdb" \
+            "azurerm_postgresql_flexible_server_database.accountdb" \
+            "accountdb" \
+            "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name accountdb"
+          
+          import_if_needed "PostgreSQL Database: notificationdb" \
+            "azurerm_postgresql_flexible_server_database.notificationdb" \
+            "notificationdb" \
+            "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name notificationdb"
+          
+          import_if_needed "Workload Identity" \
+            "azurerm_user_assigned_identity.workload_identity" \
+            "$IDENTITY_NAME" \
+            "az identity show --name $IDENTITY_NAME --resource-group $RG_NAME"
+          
+          import_if_needed "AKS Cluster" \
+            "azurerm_kubernetes_cluster.aks" \
+            "$AKS_NAME" \
+            "az aks show --name $AKS_NAME --resource-group $RG_NAME"
+          
+          echo ""
+          echo "=========================================="
+          echo "✓ Resource import check complete"
+          echo "=========================================="
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
