@@ -1,9 +1,13 @@
-name: Deploy to AKS
+name: Deploy to AKS (OLD - DISABLED)
 
-on:
-  push:
-    branches:
-      - main
+# ⚠️ THIS WORKFLOW IS DISABLED - BACKUP ONLY
+# The new workflow (aks-deploy.yml) has proper structure with 3 jobs
+# Keeping this file for reference only
+
+# on:
+#   push:
+#     branches:
+#       - main
 
 # OIDC requires id-token: write permission
 permissions:
