@@ -1,17 +1,20 @@
 # Resource locks and NSG
-resource "azurerm_management_lock" "aks_lock" {
-  name       = "${var.environment}-aks-cluster-lock"
-  scope      = azurerm_kubernetes_cluster.aks.id
-  lock_level = "CanNotDelete"
-  notes      = "Protect AKS cluster from accidental deletion."
-}
+# NOTE: Management locks commented out - requires elevated permissions
+# Uncomment these after granting the service principal appropriate permissions
 
-resource "azurerm_management_lock" "acr_lock" {
-  name       = "${var.environment}-acr-lock"
-  scope      = azurerm_container_registry.acr.id
-  lock_level = "CanNotDelete"
-  notes      = "Protect ACR from accidental deletion."
-}
+# resource "azurerm_management_lock" "aks_lock" {
+#   name       = "${var.environment}-aks-cluster-lock"
+#   scope      = azurerm_kubernetes_cluster.aks.id
+#   lock_level = "CanNotDelete"
+#   notes      = "Protect AKS cluster from accidental deletion."
+# }
+
+# resource "azurerm_management_lock" "acr_lock" {
+#   name       = "${var.environment}-acr-lock"
+#   scope      = azurerm_container_registry.acr.id
+#   lock_level = "CanNotDelete"
+#   notes      = "Protect ACR from accidental deletion."
+# }
 
 resource "azurerm_network_security_group" "aks_nsg" {
   name                = "${var.environment}-aks-nsg"

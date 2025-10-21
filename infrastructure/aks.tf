@@ -39,8 +39,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
   workload_identity_enabled = true
 
   network_profile {
-    network_plugin = "azure"
-    network_policy = "calico"
+    network_plugin    = "azure"
+    network_policy    = "calico"
+    service_cidr      = "10.1.0.0/16"      # Separate CIDR for services (no overlap with VNet)
+    dns_service_ip    = "10.1.0.10"        # Must be within service_cidr
   }
 
   # Monitoring with Log Analytics

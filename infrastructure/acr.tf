@@ -8,7 +8,7 @@ resource "azurerm_container_registry" "acr" {
   name                = local.acr_name
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
-  sku                 = "Standard"
+  sku                 = "Premium"  # Premium required for private endpoint
   admin_enabled       = false  # Use managed identity and RBAC instead
   tags                = local.common_tags
 
