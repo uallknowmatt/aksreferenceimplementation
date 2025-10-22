@@ -13,9 +13,18 @@ resource "azurerm_postgresql_flexible_server" "db" {
   sku_name               = var.db_sku_name
   storage_mb             = var.db_storage_mb
   version                = "14"
+  zone                   = "2"  # Explicitly set to match existing server in East US 2
   tags                   = local.common_tags
   
   depends_on = [azurerm_resource_group.rg]
+  
+  # Ignore changes to zone to prevent errors when updating existing servers
+  lifecycle {
+    ignore_changes = [
+      zone,
+      high_availability
+    ]
+  }
   
   # Simplified for dev - remove high availability and AD auth
   # Uncomment for production:

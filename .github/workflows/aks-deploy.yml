@@ -271,10 +271,24 @@ jobs:
           echo "Checking for existing resources to import"
           echo "=========================================="
           
+          # Read location from terraform.tfvars to match actual deployment
+          LOCATION=$(grep '^location' environments/dev/terraform.tfvars | awk -F'"' '{print $2}')
+          echo "Location from tfvars: $LOCATION"
+          
+          # Map location to short code
+          case "$LOCATION" in
+            "eastus") LOC_CODE="eus" ;;
+            "eastus2") LOC_CODE="eus2" ;;
+            "westus") LOC_CODE="wus" ;;
+            "westus2") LOC_CODE="wus2" ;;
+            "centralus") LOC_CODE="cus" ;;
+            *) LOC_CODE="eus2" ;;
+          esac
+          
+          echo "Location code: $LOC_CODE"
+          
           ENVIRONMENT="dev"
-          LOCATION="eastus"
           PROJECT="account-opening"
-          LOC_CODE="eus"
           
           # Resource names following locals.tf patterns
           RG_NAME="rg-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
@@ -412,8 +426,22 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           echo "Checking if PostgreSQL server is being deleted..."
-          POSTGRES_NAME="psql-account-opening-dev-eus"
-          RG_NAME="rg-account-opening-dev-eus"
+          
+          # Read location from terraform.tfvars
+          LOCATION=$(grep '^location' environments/dev/terraform.tfvars | awk -F'"' '{print $2}')
+          case "$LOCATION" in
+            "eastus") LOC_CODE="eus" ;;
+            "eastus2") LOC_CODE="eus2" ;;
+            "westus") LOC_CODE="wus" ;;
+            "westus2") LOC_CODE="wus2" ;;
+            "centralus") LOC_CODE="cus" ;;
+            *) LOC_CODE="eus2" ;;
+          esac
+          
+          POSTGRES_NAME="psql-account-opening-dev-${LOC_CODE}"
+          RG_NAME="rg-account-opening-dev-${LOC_CODE}"
+          
+          echo "Checking: $POSTGRES_NAME in $RG_NAME"
           
           # Check if server exists and its state
           if az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" &>/dev/null; then
