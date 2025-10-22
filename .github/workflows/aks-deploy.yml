@@ -298,6 +298,43 @@ jobs:
           echo "✓ Resource import check complete"
           echo "=========================================="
 
+      - name: Wait for PostgreSQL Deletion (if in progress)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Checking if PostgreSQL server is being deleted..."
+          POSTGRES_NAME="psql-account-opening-dev-eus"
+          RG_NAME="rg-account-opening-dev-eus"
+          
+          # Check if server exists and its state
+          if az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            STATE=$(az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" --query "state" -o tsv 2>/dev/null || echo "NotFound")
+            
+            if [ "$STATE" = "Dropping" ]; then
+              echo "⚠️  PostgreSQL server is being deleted (State: Dropping)"
+              echo "Waiting for deletion to complete (max 10 minutes)..."
+              
+              for i in {1..60}; do
+                sleep 10
+                if ! az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+                  echo "✅ PostgreSQL server deleted successfully"
+                  break
+                fi
+                
+                CURRENT_STATE=$(az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" --query "state" -o tsv 2>/dev/null || echo "NotFound")
+                if [ "$CURRENT_STATE" != "Dropping" ]; then
+                  echo "✅ PostgreSQL server state changed to: $CURRENT_STATE"
+                  break
+                fi
+                
+                echo "  Still dropping... (${i}0 seconds elapsed)"
+              done
+            else
+              echo "PostgreSQL server state: $STATE"
+            fi
+          else
+            echo "✅ No existing PostgreSQL server found (or already deleted)"
+          fi
+
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
@@ -791,6 +828,43 @@ jobs:
           echo "=========================================="
           echo "✓ Resource import check complete"
           echo "=========================================="
+
+      - name: Wait for PostgreSQL Deletion (if in progress)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "Checking if PostgreSQL server is being deleted..."
+          POSTGRES_NAME="psql-account-opening-prod-eus"
+          RG_NAME="rg-account-opening-prod-eus"
+          
+          # Check if server exists and its state
+          if az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            STATE=$(az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" --query "state" -o tsv 2>/dev/null || echo "NotFound")
+            
+            if [ "$STATE" = "Dropping" ]; then
+              echo "⚠️  PostgreSQL server is being deleted (State: Dropping)"
+              echo "Waiting for deletion to complete (max 10 minutes)..."
+              
+              for i in {1..60}; do
+                sleep 10
+                if ! az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+                  echo "✅ PostgreSQL server deleted successfully"
+                  break
+                fi
+                
+                CURRENT_STATE=$(az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" --query "state" -o tsv 2>/dev/null || echo "NotFound")
+                if [ "$CURRENT_STATE" != "Dropping" ]; then
+                  echo "✅ PostgreSQL server state changed to: $CURRENT_STATE"
+                  break
+                fi
+                
+                echo "  Still dropping... (${i}0 seconds elapsed)"
+              done
+            else
+              echo "PostgreSQL server state: $STATE"
+            fi
+          else
+            echo "✅ No existing PostgreSQL server found (or already deleted)"
+          fi
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
