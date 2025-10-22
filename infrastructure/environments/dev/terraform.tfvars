@@ -5,7 +5,7 @@
 environment = "dev"
 owner       = "devops-team"
 project     = "account-opening"
-location    = "eastus"
+location    = "eastus2"  # Changed from eastus due to PostgreSQL service issues
 
 # ============================================
 # AKS Configuration (Development)
