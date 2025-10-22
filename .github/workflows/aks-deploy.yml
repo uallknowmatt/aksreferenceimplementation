@@ -625,7 +625,11 @@ jobs:
     needs: [detect-changes, terraform-deploy-dev, build-and-push-dev]
     if: |
       always() &&
-      (needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.k8s == 'true') &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        needs.detect-changes.outputs.code == 'true' ||
+        needs.detect-changes.outputs.k8s == 'true'
+      ) &&
       (needs.terraform-deploy-dev.result == 'success' || needs.terraform-deploy-dev.result == 'skipped') &&
       (needs.build-and-push-dev.result == 'success' || needs.build-and-push-dev.result == 'skipped')
     runs-on: ubuntu-latest
@@ -794,11 +798,58 @@ jobs:
           echo "✅ Dev deployment complete!"
 
   # ============================================
-  # JOB 4: UAT Test Complete (Manual Approval Gate)
+  # JOB 4: Infrastructure Decision Gate
+  # ============================================
+  infrastructure-decision:
+    name: Keep or Destroy Infrastructure?
+    needs: [deploy-to-aks-dev]
+    if: always() && needs.deploy-to-aks-dev.result == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: infrastructure-decision
+    outputs:
+      action: ${{ steps.decision.outputs.action }}
+    steps:
+      - name: Infrastructure Decision
+        id: decision
+        run: |
+          echo "=========================================="
+          echo "💰 INFRASTRUCTURE COST DECISION"
+          echo "=========================================="
+          echo ""
+          echo "✅ Development environment deployed successfully!"
+          echo ""
+          echo "🔍 Current resources running:"
+          echo "   - AKS Cluster (2 nodes, Standard_DS2_v2)"
+          echo "   - PostgreSQL Flexible Server (Burstable B1ms)"
+          echo "   - Azure Container Registry (Basic tier)"
+          echo "   - Log Analytics Workspace"
+          echo "   - Virtual Network & NSG"
+          echo ""
+          echo "💵 Estimated cost: ~$150-200/month if left running"
+          echo ""
+          echo "⚠️  CHOOSE YOUR ACTION:"
+          echo ""
+          echo "Option 1: APPROVE THIS STEP"
+          echo "  → Continue to production deployment"
+          echo "  → Infrastructure remains running"
+          echo "  → Costs will continue to accrue"
+          echo ""
+          echo "Option 2: CANCEL THIS WORKFLOW"
+          echo "  → Trigger the destroy workflow manually"
+          echo "  → Run: gh workflow run 'Destroy Infrastructure'"
+          echo "  → All resources will be deleted"
+          echo "  → Costs reduced to ~$0.02/month (state storage only)"
+          echo ""
+          echo "action=continue" >> $GITHUB_OUTPUT
+
+  # ============================================
+  # JOB 5: UAT Test Complete (Manual Approval Gate)
   # ============================================
   uat-test-complete:
     name: UAT Testing Complete - Approve for Production
-    needs: [deploy-to-aks-dev]
+    needs: [infrastructure-decision]
+    if: needs.infrastructure-decision.outputs.action == 'continue'
     runs-on: ubuntu-latest
     environment:
       name: production-approval
@@ -822,7 +873,7 @@ jobs:
           echo ""
 
   # ============================================
-  # JOB 5: Deploy Azure Infrastructure (PROD)
+  # JOB 6: Deploy Azure Infrastructure (PROD)
   # ============================================
   terraform-deploy-prod:
     name: Deploy Azure Infrastructure (Prod)
@@ -1235,7 +1286,7 @@ jobs:
           echo "managed_identity_client_id=$MANAGED_IDENTITY_CLIENT_ID" >> $GITHUB_OUTPUT
 
   # ============================================
-  # JOB 6: Build and Push Docker Images (PROD)
+  # JOB 7: Build and Push Docker Images (PROD)
   # ============================================
   build-and-push-prod:
     name: Build and Push Images (Prod)
@@ -1292,7 +1343,7 @@ jobs:
           echo "✅ All production images pushed to ACR!"
 
   # ============================================
-  # JOB 7: Deploy to AKS (PROD)
+  # JOB 8: Deploy to AKS (PROD)
   # ============================================
   deploy-to-aks-prod:
     name: Deploy to AKS (Prod)
