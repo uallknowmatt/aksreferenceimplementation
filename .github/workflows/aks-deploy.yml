@@ -147,6 +147,46 @@ jobs:
           terraform init -reconfigure \
             -backend-config="key=dev.terraform.tfstate"
 
+      - name: Clear Stuck State Locks (if any)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        continue-on-error: true
+        run: |
+          echo "Checking for stuck state locks..."
+          
+          # Check if blob is leased
+          LEASE_STATE=$(az storage blob show \
+            --account-name tfstateaccountopening \
+            --container-name tfstate \
+            --name dev.terraform.tfstate \
+            --auth-mode login \
+            --query "properties.lease.state" -o tsv 2>/dev/null || echo "unknown")
+          
+          echo "State file lease state: $LEASE_STATE"
+          
+          if [ "$LEASE_STATE" = "available" ]; then
+            echo "✅ No active lease - state is available"
+            
+            # Clear lock metadata if present but lease is free
+            echo "Clearing any stale lock metadata..."
+            az storage blob metadata update \
+              --account-name tfstateaccountopening \
+              --container-name tfstate \
+              --name dev.terraform.tfstate \
+              --auth-mode login \
+              --metadata terraformlockid= 2>/dev/null || echo "No metadata to clear"
+            
+            echo "✅ State lock cleared"
+          else
+            echo "⚠️  State has active lease: $LEASE_STATE"
+            echo "Attempting to break lease..."
+            az storage blob lease break \
+              --account-name tfstateaccountopening \
+              --container-name tfstate \
+              --blob-name dev.terraform.tfstate \
+              --auth-mode login \
+              --lease-break-period 0 2>/dev/null || echo "Could not break lease"
+          fi
+
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
@@ -683,6 +723,46 @@ jobs:
           echo "Initializing Terraform with remote backend (prod environment)..."
           terraform init -reconfigure \
             -backend-config="key=prod.terraform.tfstate"
+
+      - name: Clear Stuck State Locks (if any)
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        continue-on-error: true
+        run: |
+          echo "Checking for stuck state locks..."
+          
+          # Check if blob is leased
+          LEASE_STATE=$(az storage blob show \
+            --account-name tfstateaccountopening \
+            --container-name tfstate \
+            --name prod.terraform.tfstate \
+            --auth-mode login \
+            --query "properties.lease.state" -o tsv 2>/dev/null || echo "unknown")
+          
+          echo "State file lease state: $LEASE_STATE"
+          
+          if [ "$LEASE_STATE" = "available" ]; then
+            echo "✅ No active lease - state is available"
+            
+            # Clear lock metadata if present but lease is free
+            echo "Clearing any stale lock metadata..."
+            az storage blob metadata update \
+              --account-name tfstateaccountopening \
+              --container-name tfstate \
+              --name prod.terraform.tfstate \
+              --auth-mode login \
+              --metadata terraformlockid= 2>/dev/null || echo "No metadata to clear"
+            
+            echo "✅ State lock cleared"
+          else
+            echo "⚠️  State has active lease: $LEASE_STATE"
+            echo "Attempting to break lease..."
+            az storage blob lease break \
+              --account-name tfstateaccountopening \
+              --container-name tfstate \
+              --blob-name prod.terraform.tfstate \
+              --auth-mode login \
+              --lease-break-period 0 2>/dev/null || echo "Could not break lease"
+          fi
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
