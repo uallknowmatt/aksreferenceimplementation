@@ -379,7 +379,30 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           echo "Creating Terraform plan for dev environment..."
-          terraform plan -var-file=environments/dev/terraform.tfvars -out=tfplan
+          
+          # Retry logic for state lock conflicts
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
+            
+            if terraform plan -var-file=environments/dev/terraform.tfvars -out=tfplan; then
+              echo "✅ Terraform plan succeeded"
+              exit 0
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              WAIT_TIME=$((RETRY_COUNT * 30))
+              echo "⚠️  Plan failed, waiting ${WAIT_TIME} seconds before retry..."
+              sleep $WAIT_TIME
+            fi
+          done
+          
+          echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
+          exit 1
           
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -950,7 +973,30 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           echo "Creating Terraform plan for prod environment..."
-          terraform plan -var-file=environments/prod/terraform.tfvars -out=tfplan
+          
+          # Retry logic for state lock conflicts
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
+            
+            if terraform plan -var-file=environments/prod/terraform.tfvars -out=tfplan; then
+              echo "✅ Terraform plan succeeded"
+              exit 0
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              WAIT_TIME=$((RETRY_COUNT * 30))
+              echo "⚠️  Plan failed, waiting ${WAIT_TIME} seconds before retry..."
+              sleep $WAIT_TIME
+            fi
+          done
+          
+          echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
+          exit 1
           
       - name: Production Deployment Warning
         run: |
