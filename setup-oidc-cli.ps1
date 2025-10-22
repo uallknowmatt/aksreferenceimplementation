@@ -88,11 +88,24 @@ Write-Host "Step 5: Assigning Contributor role..." -ForegroundColor Yellow
 $EXISTING_ROLE = az role assignment list --assignee $CLIENT_ID --scope "/subscriptions/$SUBSCRIPTION_ID" --query "[?roleDefinitionName=='Contributor'].roleDefinitionName" -o tsv
 
 if ([string]::IsNullOrEmpty($EXISTING_ROLE)) {
-    Write-Host "Creating role assignment..." -ForegroundColor Yellow
+    Write-Host "Creating Contributor role assignment..." -ForegroundColor Yellow
     az role assignment create --assignee $CLIENT_ID --role Contributor --scope "/subscriptions/$SUBSCRIPTION_ID" | Out-Null
     Write-Host "✅ Assigned Contributor role" -ForegroundColor Green
 } else {
     Write-Host "✅ Contributor role already assigned" -ForegroundColor Green
+}
+
+# 5b. Assign User Access Administrator role (needed for Terraform role assignments)
+Write-Host "Assigning User Access Administrator role..." -ForegroundColor Yellow
+Write-Host "   (This allows Terraform to create role assignments like AKS->ACR pull)" -ForegroundColor Gray
+$EXISTING_UAA_ROLE = az role assignment list --assignee $CLIENT_ID --scope "/subscriptions/$SUBSCRIPTION_ID" --query "[?roleDefinitionName=='User Access Administrator'].roleDefinitionName" -o tsv
+
+if ([string]::IsNullOrEmpty($EXISTING_UAA_ROLE)) {
+    Write-Host "Creating User Access Administrator role assignment..." -ForegroundColor Yellow
+    az role assignment create --assignee $CLIENT_ID --role "User Access Administrator" --scope "/subscriptions/$SUBSCRIPTION_ID" | Out-Null
+    Write-Host "✅ Assigned User Access Administrator role" -ForegroundColor Green
+} else {
+    Write-Host "✅ User Access Administrator role already assigned" -ForegroundColor Green
 }
 Write-Host ""
 

@@ -89,7 +89,7 @@ echo "Step 5: Assigning Contributor role..."
 EXISTING_ROLE=$(az role assignment list --assignee $CLIENT_ID --scope "/subscriptions/$SUBSCRIPTION_ID" --query "[?roleDefinitionName=='Contributor'].roleDefinitionName" -o tsv)
 
 if [ -z "$EXISTING_ROLE" ]; then
-  echo "Creating role assignment..."
+  echo "Creating Contributor role assignment..."
   az role assignment create \
     --assignee $CLIENT_ID \
     --role Contributor \
@@ -97,6 +97,22 @@ if [ -z "$EXISTING_ROLE" ]; then
   echo "✅ Assigned Contributor role"
 else
   echo "✅ Contributor role already assigned"
+fi
+
+# 5b. Assign User Access Administrator role (needed for Terraform role assignments)
+echo "Assigning User Access Administrator role..."
+echo "   (This allows Terraform to create role assignments like AKS->ACR pull)"
+EXISTING_UAA_ROLE=$(az role assignment list --assignee $CLIENT_ID --scope "/subscriptions/$SUBSCRIPTION_ID" --query "[?roleDefinitionName=='User Access Administrator'].roleDefinitionName" -o tsv)
+
+if [ -z "$EXISTING_UAA_ROLE" ]; then
+  echo "Creating User Access Administrator role assignment..."
+  az role assignment create \
+    --assignee $CLIENT_ID \
+    --role "User Access Administrator" \
+    --scope "/subscriptions/$SUBSCRIPTION_ID" > /dev/null
+  echo "✅ Assigned User Access Administrator role"
+else
+  echo "✅ User Access Administrator role already assigned"
 fi
 echo ""
 
