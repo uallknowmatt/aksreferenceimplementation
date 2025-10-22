@@ -12,9 +12,9 @@ resource "azurerm_postgresql_flexible_server" "db" {
   administrator_password = var.db_admin_password
   sku_name               = var.db_sku_name
   storage_mb             = var.db_storage_mb
-  storage_tier           = "P4"  # Required for smaller storage sizes
   version                = "14"
-  backup_retention_days  = 7      # Required minimum
+  backup_retention_days  = 7
+  zone                   = "1"    # Specify availability zone
   tags                   = local.common_tags
   
   depends_on = [azurerm_resource_group.rg]
