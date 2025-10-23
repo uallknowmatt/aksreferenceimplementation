@@ -57,8 +57,8 @@ resource "azurerm_subnet" "postgres_subnet" {
     }
   }
 
-  # Disable private endpoint network policies
-  private_endpoint_network_policies_enabled = false
+  # Disable private endpoint network policies (required for PostgreSQL VNet integration)
+  private_endpoint_network_policies = "Disabled"
 
   depends_on = [azurerm_virtual_network.vnet]
 }
