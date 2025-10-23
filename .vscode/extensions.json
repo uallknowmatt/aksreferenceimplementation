@@ -1,0 +1,87 @@
+{
+    // ============================================
+    // Recommended Extensions for Bank Account Opening System
+    // ============================================
+    // These extensions will enhance your development experience
+    // VS Code will prompt you to install missing extensions
+    
+    "recommendations": [
+        // ============================================
+        // Shell & Terminal
+        // ============================================
+        "timonwong.shellcheck",           // ShellCheck - Shell script linting
+        "foxundermoon.shell-format",      // Shell Script Formatter
+        "mads-hartmann.bash-ide-vscode",  // Bash IDE - IntelliSense for Bash
+        
+        // ============================================
+        // Azure & Cloud
+        // ============================================
+        "ms-azuretools.vscode-azureterraform",     // Azure Terraform
+        "ms-azuretools.vscode-docker",              // Docker
+        "ms-kubernetes-tools.vscode-kubernetes-tools", // Kubernetes
+        "ms-vscode.azurecli",                       // Azure CLI Tools
+        "ms-azuretools.vscode-azureresourcegroups", // Azure Resources
+        "ms-azuretools.vscode-azurefunctions",      // Azure Functions (if needed)
+        
+        // ============================================
+        // Infrastructure as Code
+        // ============================================
+        "hashicorp.terraform",            // Terraform - Syntax highlighting & validation
+        "ms-vscode.makefile-tools",       // Makefile Tools
+        
+        // ============================================
+        // YAML & Configuration
+        // ============================================
+        "redhat.vscode-yaml",             // YAML - Kubernetes manifest support
+        "ms-kubernetes-tools.vscode-kubernetes-tools", // Kubernetes Tools
+        
+        // ============================================
+        // Java & Spring Boot
+        // ============================================
+        "vscjava.vscode-java-pack",       // Java Extension Pack
+        "vscjava.vscode-spring-boot-dashboard", // Spring Boot Dashboard
+        "pivotal.vscode-spring-boot",     // Spring Boot Tools
+        "vscjava.vscode-maven",           // Maven for Java
+        
+        // ============================================
+        // JavaScript & React
+        // ============================================
+        "dbaeumer.vscode-eslint",         // ESLint
+        "esbenp.prettier-vscode",         // Prettier - Code formatter
+        "dsznajder.es7-react-js-snippets", // React snippets
+        
+        // ============================================
+        // Git & GitHub
+        // ============================================
+        "github.vscode-github-actions",   // GitHub Actions
+        "eamodio.gitlens",                // GitLens - Git supercharged
+        "donjayamanne.githistory",        // Git History
+        
+        // ============================================
+        // Markdown & Documentation
+        // ============================================
+        "yzhang.markdown-all-in-one",     // Markdown All in One
+        "davidanson.vscode-markdownlint", // Markdown Linting
+        "bierner.markdown-mermaid",       // Mermaid diagram support
+        
+        // ============================================
+        // Code Quality & Linting
+        // ============================================
+        "editorconfig.editorconfig",      // EditorConfig support
+        "streetsidesoftware.code-spell-checker", // Spell Checker
+        
+        // ============================================
+        // Utilities
+        // ============================================
+        "ms-vscode-remote.remote-containers", // Remote Containers
+        "ms-vscode-remote.remote-wsl",        // Remote WSL (if using WSL)
+        "visualstudioexptteam.vscodeintellicode", // AI-assisted IntelliSense
+        "ms-vscode.powershell",               // PowerShell (for educational scripts)
+        "humao.rest-client"                   // REST Client - Test APIs
+    ],
+    
+    // ============================================
+    // Unwanted Extensions (conflicts or not needed)
+    // ============================================
+    "unwantedRecommendations": []
+}

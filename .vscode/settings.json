@@ -1,3 +1,107 @@
 {
-    "java.configuration.updateBuildConfiguration": "interactive"
+    "java.configuration.updateBuildConfiguration": "interactive",
+    
+    // ============================================
+    // Terminal Configuration
+    // ============================================
+    // Use Git Bash as default terminal for running scripts and Azure CLI
+    "terminal.integrated.defaultProfile.windows": "Git Bash",
+    
+    // Terminal profiles configuration
+    "terminal.integrated.profiles.windows": {
+        "Git Bash": {
+            "path": "C:\\Program Files\\Git\\bin\\bash.exe",
+            "icon": "terminal-bash",
+            "args": ["--login"]
+        },
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell"
+        },
+        "Command Prompt": {
+            "path": [
+                "${env:windir}\\Sysnative\\cmd.exe",
+                "${env:windir}\\System32\\cmd.exe"
+            ],
+            "icon": "terminal-cmd"
+        }
+    },
+    
+    // ============================================
+    // File Associations
+    // ============================================
+    "files.associations": {
+        "*.sh": "shellscript",
+        "*.yml": "yaml",
+        "*.yaml": "yaml",
+        "Dockerfile*": "dockerfile",
+        "*.tf": "terraform",
+        "*.tfvars": "terraform"
+    },
+    
+    // ============================================
+    // Language-Specific Settings
+    // ============================================
+    "[shellscript]": {
+        "editor.defaultFormatter": "foxundermoon.shell-format",
+        "editor.formatOnSave": true
+    },
+    
+    "[yaml]": {
+        "editor.defaultFormatter": "redhat.vscode-yaml",
+        "editor.formatOnSave": true,
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2
+    },
+    
+    "[terraform]": {
+        "editor.defaultFormatter": "hashicorp.terraform",
+        "editor.formatOnSave": true
+    },
+    
+    "[markdown]": {
+        "editor.wordWrap": "on",
+        "editor.quickSuggestions": {
+            "comments": "off",
+            "strings": "off",
+            "other": "off"
+        }
+    },
+    
+    // ============================================
+    // Shell Script Linting
+    // ============================================
+    "shellcheck.enable": true,
+    "shellcheck.executablePath": "shellcheck",
+    "shellcheck.exclude": [],
+    "shellcheck.run": "onType",
+    
+    // ============================================
+    // Azure Extension Settings
+    // ============================================
+    "azureTerraform.terminal": "integrated",
+    
+    // ============================================
+    // Kubernetes Settings
+    // ============================================
+    "vs-kubernetes": {
+        "vs-kubernetes.crd-code-completion": "enabled",
+        "vs-kubernetes.namespace": ""
+    },
+    
+    // ============================================
+    // Git Settings
+    // ============================================
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "git.autofetch": true,
+    
+    // ============================================
+    // Editor Settings
+    // ============================================
+    "editor.rulers": [80, 120],
+    "editor.renderWhitespace": "boundary",
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.eol": "\n"
 }

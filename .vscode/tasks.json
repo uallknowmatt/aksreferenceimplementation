@@ -1,0 +1,289 @@
+{
+    // ============================================
+    // VS Code Tasks Configuration
+    // ============================================
+    // Use Ctrl+Shift+B to run build tasks
+    // Use Ctrl+Shift+P -> "Tasks: Run Task" for other tasks
+    
+    "version": "2.0.0",
+    "tasks": [
+        // ============================================
+        // Azure CLI Tasks
+        // ============================================
+        {
+            "label": "Azure: Login",
+            "type": "shell",
+            "command": "az login",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Azure: Check Infrastructure Status",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "az aks list --query '[].{Name:name, Status:powerState.code, Location:location}' -o table && az postgres flexible-server list --query '[].{Name:name, State:state, Location:location}' -o table"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Kubectl: Get All Pods",
+            "type": "shell",
+            "command": "kubectl get pods",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Kubectl: Get All Services",
+            "type": "shell",
+            "command": "kubectl get svc",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        
+        // ============================================
+        // Local Development Tasks
+        // ============================================
+        {
+            "label": "Local: Start Docker Compose",
+            "type": "shell",
+            "command": "docker-compose up -d",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Local: Stop Docker Compose",
+            "type": "shell",
+            "command": "docker-compose down",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Local: Docker Compose Logs",
+            "type": "shell",
+            "command": "docker-compose logs -f",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none",
+            "isBackground": true
+        },
+        
+        // ============================================
+        // Build Tasks
+        // ============================================
+        {
+            "label": "Maven: Clean Install (All Services)",
+            "type": "shell",
+            "command": "mvn clean install",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Maven: Build Customer Service",
+            "type": "shell",
+            "command": "cd customer-service && mvn clean install",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "build"
+        },
+        {
+            "label": "Maven: Build Document Service",
+            "type": "shell",
+            "command": "cd document-service && mvn clean install",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "build"
+        },
+        {
+            "label": "Maven: Build Account Service",
+            "type": "shell",
+            "command": "cd account-service && mvn clean install",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "build"
+        },
+        {
+            "label": "Maven: Build Notification Service",
+            "type": "shell",
+            "command": "cd notification-service && mvn clean install",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "build"
+        },
+        
+        // ============================================
+        // Frontend Tasks
+        // ============================================
+        {
+            "label": "Frontend: Install Dependencies",
+            "type": "shell",
+            "command": "cd frontend/account-opening-ui && npm install",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Frontend: Start Dev Server",
+            "type": "shell",
+            "command": "cd frontend/account-opening-ui && npm start",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none",
+            "isBackground": true
+        },
+        {
+            "label": "Frontend: Build Production",
+            "type": "shell",
+            "command": "cd frontend/account-opening-ui && npm run build",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "build"
+        },
+        
+        // ============================================
+        // Terraform Tasks
+        // ============================================
+        {
+            "label": "Terraform: Init (Dev)",
+            "type": "shell",
+            "command": "cd infrastructure/environments/dev && terraform init",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Terraform: Plan (Dev)",
+            "type": "shell",
+            "command": "cd infrastructure/environments/dev && terraform plan",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Terraform: Format",
+            "type": "shell",
+            "command": "cd infrastructure && terraform fmt -recursive",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Terraform: Validate",
+            "type": "shell",
+            "command": "cd infrastructure/environments/dev && terraform validate",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        
+        // ============================================
+        // Testing Tasks
+        // ============================================
+        {
+            "label": "Test: Run Health Checks",
+            "type": "shell",
+            "command": "bash scripts/educational/test-deployment.ps1",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "test"
+        },
+        
+        // ============================================
+        // Git Tasks
+        // ============================================
+        {
+            "label": "Git: View Status",
+            "type": "shell",
+            "command": "git status",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        },
+        {
+            "label": "Git: Pull Latest",
+            "type": "shell",
+            "command": "git pull",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "group": "none"
+        }
+    ]
+}
