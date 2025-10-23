@@ -34,6 +34,21 @@ resource "azurerm_postgresql_flexible_server" "db" {
 }
 
 # ============================================
+# PostgreSQL Firewall Rules
+# ============================================
+# Depends on: PostgreSQL Server
+# Allows AKS subnet to access PostgreSQL
+
+resource "azurerm_postgresql_flexible_server_firewall_rule" "aks_subnet" {
+  name             = "allow-aks-subnet"
+  server_id        = azurerm_postgresql_flexible_server.db.id
+  start_ip_address = cidrhost(var.aks_subnet_address_prefix[0], 0)  # First IP in subnet (10.0.1.0)
+  end_ip_address   = cidrhost(var.aks_subnet_address_prefix[0], 255) # Last usable IP (10.0.1.255)
+
+  depends_on = [azurerm_postgresql_flexible_server.db]
+}
+
+# ============================================
 # PostgreSQL Databases
 # ============================================
 # Depends on: PostgreSQL Server
