@@ -5,6 +5,15 @@ on:
     branches:
       - main
   workflow_dispatch:  # Allow manual triggering
+    inputs:
+      force_run:
+        description: 'Force all jobs to run (override change detection)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 # OIDC requires id-token: write permission
 permissions:
@@ -90,7 +99,9 @@ jobs:
   terraform-deploy-dev:
     name: Deploy Azure Infrastructure (Dev)
     needs: detect-changes
-    if: needs.detect-changes.outputs.infrastructure == 'true'
+    if: |
+      github.event.inputs.force_run == 'true' ||
+      needs.detect-changes.outputs.infrastructure == 'true'
     runs-on: ubuntu-latest
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -543,7 +554,10 @@ jobs:
     needs: [detect-changes, terraform-deploy-dev]
     if: |
       always() &&
-      needs.detect-changes.outputs.code == 'true' &&
+      (
+        github.event.inputs.force_run == 'true' ||
+        needs.detect-changes.outputs.code == 'true'
+      ) &&
       (needs.terraform-deploy-dev.result == 'success' || needs.terraform-deploy-dev.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
@@ -659,7 +673,7 @@ jobs:
     if: |
       always() &&
       (
-        github.event_name == 'workflow_dispatch' ||
+        github.event.inputs.force_run == 'true' ||
         needs.detect-changes.outputs.code == 'true' ||
         needs.detect-changes.outputs.k8s == 'true'
       ) &&
