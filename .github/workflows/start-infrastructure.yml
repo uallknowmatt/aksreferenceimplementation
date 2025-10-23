@@ -60,26 +60,6 @@ jobs:
           echo "AKS_NAME=$AKS_NAME" >> $GITHUB_OUTPUT
           echo "POSTGRES_NAME=$POSTGRES_NAME" >> $GITHUB_OUTPUT
 
-      - name: Check if AKS exists
-        id: check-aks
-        run: |
-          if az aks show --name ${{ steps.resources.outputs.AKS_NAME }} --resource-group ${{ steps.resources.outputs.RG_NAME }} &> /dev/null; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "✅ AKS cluster found: ${{ steps.resources.outputs.AKS_NAME }}"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "❌ AKS cluster not found. Infrastructure may need to be deployed first."
-          fi
-
-      - name: Start AKS Cluster
-        if: steps.check-aks.outputs.exists == 'true'
-        run: |
-          echo "🚀 Starting AKS cluster: ${{ steps.resources.outputs.AKS_NAME }}..."
-          az aks start \
-            --name ${{ steps.resources.outputs.AKS_NAME }} \
-            --resource-group ${{ steps.resources.outputs.RG_NAME }}
-          echo "✅ AKS cluster started successfully!"
-
       - name: Check if PostgreSQL exists
         id: check-postgres
         run: |
@@ -100,10 +80,38 @@ jobs:
             --resource-group ${{ steps.resources.outputs.RG_NAME }}
           echo "✅ PostgreSQL server started successfully!"
 
-      - name: Wait for services to be ready
+      - name: Wait for PostgreSQL to be ready
+        if: steps.check-postgres.outputs.exists == 'true'
+        run: |
+          echo "⏳ Waiting for PostgreSQL to be fully ready..."
+          echo "This ensures the database is available before AKS pods try to connect..."
+          sleep 60
+          echo "✅ PostgreSQL should be ready now!"
+
+      - name: Check if AKS exists
+        id: check-aks
+        run: |
+          if az aks show --name ${{ steps.resources.outputs.AKS_NAME }} --resource-group ${{ steps.resources.outputs.RG_NAME }} &> /dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ AKS cluster found: ${{ steps.resources.outputs.AKS_NAME }}"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "❌ AKS cluster not found. Infrastructure may need to be deployed first."
+          fi
+
+      - name: Start AKS Cluster
         if: steps.check-aks.outputs.exists == 'true'
         run: |
-          echo "⏳ Waiting for services to be ready..."
+          echo "🚀 Starting AKS cluster: ${{ steps.resources.outputs.AKS_NAME }}..."
+          az aks start \
+            --name ${{ steps.resources.outputs.AKS_NAME }} \
+            --resource-group ${{ steps.resources.outputs.RG_NAME }}
+          echo "✅ AKS cluster started successfully!"
+
+      - name: Wait for AKS pods to be ready
+        if: steps.check-aks.outputs.exists == 'true'
+        run: |
+          echo "⏳ Waiting for AKS pods to start and connect to PostgreSQL..."
           sleep 30
           echo "✅ Services should be ready now!"
 
