@@ -62,10 +62,10 @@ echo ""
 # Start each service in a new Git Bash window
 for service in "${services[@]}"; do
     echo -e "${GRAY}Starting $service...${NC}"
-    
+
     # Start in new Git Bash window
     start bash -c "cd $project_root/$service && echo -e '\033[0;36mStarting $service...\033[0m' && mvn spring-boot:run; read -p 'Press Enter to close...'"
-    
+
     sleep 3
 done
 

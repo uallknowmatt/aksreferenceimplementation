@@ -180,20 +180,20 @@ Internet → Azure Load Balancer → AKS Cluster → 4 Microservices → Postgre
 ## Key Features
 
 ### Application Features
-✅ **Customer Onboarding** - Digital registration with KYC verification  
-✅ **Document Management** - Secure upload and verification of ID proofs  
-✅ **Account Creation** - Multiple account types (Checking, Savings, Money Market)  
-✅ **Notifications** - Email/SMS alerts for status updates  
+✅ **Customer Onboarding** - Digital registration with KYC verification
+✅ **Document Management** - Secure upload and verification of ID proofs
+✅ **Account Creation** - Multiple account types (Checking, Savings, Money Market)
+✅ **Notifications** - Email/SMS alerts for status updates
 ✅ **Audit Trail** - Complete tracking of all operations
 
 ### Technical Features
-✅ **Microservices Architecture** - 4 independent, scalable services  
-✅ **Cloud-Native** - Containerized with Docker, orchestrated with Kubernetes  
-✅ **Secure Private Networking** - PostgreSQL with VNet integration (no public access)  
-✅ **Infrastructure as Code** - Full Terraform automation  
-✅ **CI/CD Pipeline** - GitHub Actions with OIDC authentication  
-✅ **Automated Testing** - 6 comprehensive health checks after deployment  
-✅ **Self-Healing** - Kubernetes auto-recovery and health checks  
+✅ **Microservices Architecture** - 4 independent, scalable services
+✅ **Cloud-Native** - Containerized with Docker, orchestrated with Kubernetes
+✅ **Secure Private Networking** - PostgreSQL with VNet integration (no public access)
+✅ **Infrastructure as Code** - Full Terraform automation
+✅ **CI/CD Pipeline** - GitHub Actions with OIDC authentication
+✅ **Automated Testing** - 6 comprehensive health checks after deployment
+✅ **Self-Healing** - Kubernetes auto-recovery and health checks
 ✅ **Cost Optimized** - Start/stop infrastructure to save 85% costs
 
 ---

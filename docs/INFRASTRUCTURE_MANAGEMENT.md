@@ -375,13 +375,13 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
+
       - name: Stop AKS
         run: |
           az aks stop \
             --resource-group rg-account-opening-dev-eus2 \
             --name aks-account-opening-dev-eus2
-      
+
       - name: Stop PostgreSQL
         run: |
           az postgres flexible-server stop \
@@ -405,13 +405,13 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
+
       - name: Start AKS
         run: |
           az aks start \
             --resource-group rg-account-opening-dev-eus2 \
             --name aks-account-opening-dev-eus2
-      
+
       - name: Start PostgreSQL
         run: |
           az postgres flexible-server start \

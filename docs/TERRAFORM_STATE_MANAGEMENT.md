@@ -35,10 +35,10 @@ terraform-state-rg/
 
 ### Key Features
 
-✅ **Versioning Enabled** - Previous versions kept for 30 days  
-✅ **Soft Delete** - Deleted blobs recoverable for 30 days  
-✅ **Encrypted** - Data encrypted at rest (Azure Storage encryption)  
-✅ **Private** - No public blob access allowed  
+✅ **Versioning Enabled** - Previous versions kept for 30 days
+✅ **Soft Delete** - Deleted blobs recoverable for 30 days
+✅ **Encrypted** - Data encrypted at rest (Azure Storage encryption)
+✅ **Private** - No public blob access allowed
 ✅ **Locked** - State locking prevents concurrent modifications
 
 ---
@@ -56,12 +56,12 @@ The GitHub Actions workflow **automatically handles everything**:
   run: |
     RESOURCE_GROUP="terraform-state-rg"
     STORAGE_ACCOUNT="tfstateaccountopening"
-    
+
     # Check if storage account exists
     if ! az storage account show --name $STORAGE_ACCOUNT &>/dev/null; then
       # Create resource group
       az group create --name $RESOURCE_GROUP --location eastus
-      
+
       # Create storage account with security features
       az storage account create \
         --name $STORAGE_ACCOUNT \
@@ -70,18 +70,18 @@ The GitHub Actions workflow **automatically handles everything**:
         --https-only true \
         --min-tls-version TLS1_2 \
         --allow-blob-public-access false
-      
+
       # Enable versioning (keep 30 versions)
       az storage account blob-service-properties update \
         --account-name $STORAGE_ACCOUNT \
         --enable-versioning true
-      
+
       # Enable soft delete (30 days retention)
       az storage account blob-service-properties update \
         --account-name $STORAGE_ACCOUNT \
         --enable-delete-retention true \
         --delete-retention-days 30
-      
+
       # Create container
       az storage container create \
         --name tfstate \
@@ -91,8 +91,8 @@ The GitHub Actions workflow **automatically handles everything**:
 
 ### What This Means for You
 
-🎉 **No separate PowerShell or Shell scripts needed!**  
-🎉 **No manual setup required!**  
+🎉 **No separate PowerShell or Shell scripts needed!**
+🎉 **No manual setup required!**
 🎉 **Just trigger the workflow and it handles everything!**
 
 ---
@@ -239,10 +239,10 @@ When Terraform runs, it **locks the state file** to prevent concurrent modificat
 ```
 1. Terraform acquires lease on state blob
    └─ Lease State: "leased" (locked)
-   
+
 2. Terraform performs operations
    └─ State: Read → Plan → Apply → Update
-   
+
 3. Terraform releases lease
    └─ Lease State: "available" (unlocked)
 ```
@@ -261,7 +261,7 @@ When Terraform runs, it **locks the state file** to prevent concurrent modificat
     LEASE_STATE=$(az storage blob show \
       --name dev.terraform.tfstate \
       --query "properties.lease.state" -o tsv)
-    
+
     # If leased but no active operation, break lease
     if [ "$LEASE_STATE" = "leased" ]; then
       az storage blob lease break \
@@ -439,13 +439,13 @@ az storage blob upload `
 
 ### Key Takeaways
 
-✅ **terraform-state-rg is automatically managed** by GitHub Actions workflow  
-✅ **No separate PS1/SH scripts needed** - workflow handles everything  
-✅ **Never delete terraform-state-rg** unless you want complete clean slate  
-✅ **Clear state files** when resources are manually deleted  
-✅ **Versioning and soft delete** protect against accidental deletion  
-✅ **State locking** prevents concurrent modifications  
-✅ **Cost is negligible** (~$0.66/month) compared to value  
+✅ **terraform-state-rg is automatically managed** by GitHub Actions workflow
+✅ **No separate PS1/SH scripts needed** - workflow handles everything
+✅ **Never delete terraform-state-rg** unless you want complete clean slate
+✅ **Clear state files** when resources are manually deleted
+✅ **Versioning and soft delete** protect against accidental deletion
+✅ **State locking** prevents concurrent modifications
+✅ **Cost is negligible** (~$0.66/month) compared to value
 
 ### Quick Reference
 

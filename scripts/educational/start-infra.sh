@@ -63,12 +63,12 @@ interval=15
 while [ $elapsed -lt $max_wait ]; do
     sleep $interval
     elapsed=$((elapsed + interval))
-    
+
     aks_state=$(az aks show -g "$RESOURCE_GROUP" -n "$AKS_NAME" --query "powerState.code" -o tsv 2>/dev/null || echo "Unknown")
     pg_state=$(az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$PG_NAME" --query "state" -o tsv 2>/dev/null || echo "Unknown")
-    
+
     echo -e "${GRAY}   [$elapsed s] AKS: $aks_state | PostgreSQL: $pg_state${NC}"
-    
+
     if [ "$aks_state" = "Running" ] && [ "$pg_state" = "Ready" ]; then
         break
     fi
@@ -90,11 +90,11 @@ if [ "$aks_state" = "Running" ] && [ "$pg_state" = "Ready" ]; then
     echo -e "${YELLOW}💡 Remember to stop when done to save costs!${NC}"
     echo -e "   ${CYAN}Run: ./stop-infra.sh${NC}"
     echo ""
-    
+
     # Get AKS credentials
     echo -e "${CYAN}🔑 Updating kubectl credentials...${NC}"
     az aks get-credentials -g "$RESOURCE_GROUP" -n "$AKS_NAME" --overwrite-existing
-    
+
     echo ""
     echo -e "${GREEN}✅ Ready to deploy! Run:${NC}"
     echo -e "   ${WHITE}kubectl get nodes${NC}"

@@ -40,12 +40,12 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      
+
       - name: Check for file changes
         id: filter
         run: |
           echo "Checking for changes in different parts of the codebase..."
-          
+
           # For workflow_dispatch, run everything
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "Manual trigger - will check all components"
@@ -54,7 +54,7 @@ jobs:
             echo "k8s=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Get changed files
           if [ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]; then
             # First push to branch
@@ -62,10 +62,10 @@ jobs:
           else
             CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
           fi
-          
+
           echo "Changed files:"
           echo "$CHANGED_FILES"
-          
+
           # Check infrastructure changes
           if echo "$CHANGED_FILES" | grep -qE '^infrastructure/'; then
             echo "infrastructure=true" >> $GITHUB_OUTPUT
@@ -74,7 +74,7 @@ jobs:
             echo "infrastructure=false" >> $GITHUB_OUTPUT
             echo "○ No infrastructure changes"
           fi
-          
+
           # Check code changes (microservices)
           if echo "$CHANGED_FILES" | grep -qE '^(customer-service|document-service|account-service|notification-service)/'; then
             echo "code=true" >> $GITHUB_OUTPUT
@@ -83,7 +83,7 @@ jobs:
             echo "code=false" >> $GITHUB_OUTPUT
             echo "○ No code changes"
           fi
-          
+
           # Check k8s manifest changes
           if echo "$CHANGED_FILES" | grep -qE '^k8s/'; then
             echo "k8s=true" >> $GITHUB_OUTPUT
@@ -136,25 +136,25 @@ jobs:
       - name: Setup Terraform State Backend
         run: |
           echo "🔍 Checking if Terraform state backend exists..."
-          
+
           RESOURCE_GROUP="terraform-state-rg"
           STORAGE_ACCOUNT="tfstateaccountopening"
           CONTAINER="tfstate"
           LOCATION="eastus"
-          
+
           # Check if storage account exists
           if az storage account show --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP &>/dev/null; then
             echo "✅ Backend storage account already exists"
           else
             echo "📦 Creating Terraform state backend..."
-            
+
             # Create resource group
             echo "Creating resource group: $RESOURCE_GROUP"
             az group create \
               --name $RESOURCE_GROUP \
               --location $LOCATION \
               --tags purpose=terraform-state managed_by=github-actions
-            
+
             # Create storage account
             echo "Creating storage account: $STORAGE_ACCOUNT"
             az storage account create \
@@ -167,21 +167,21 @@ jobs:
               --min-tls-version TLS1_2 \
               --allow-blob-public-access false \
               --tags purpose=terraform-state managed_by=github-actions
-            
+
             # Enable versioning
             echo "Enabling blob versioning..."
             az storage account blob-service-properties update \
               --account-name $STORAGE_ACCOUNT \
               --resource-group $RESOURCE_GROUP \
               --enable-versioning true
-            
+
             # Create container
             echo "Creating blob container: $CONTAINER"
             az storage container create \
               --name $CONTAINER \
               --account-name $STORAGE_ACCOUNT \
               --auth-mode login
-            
+
             # Enable soft delete
             echo "Enabling soft delete (30 days)..."
             az storage account blob-service-properties update \
@@ -189,28 +189,28 @@ jobs:
               --resource-group $RESOURCE_GROUP \
               --enable-delete-retention true \
               --delete-retention-days 30
-            
+
             echo "✅ Backend storage created successfully!"
           fi
-          
+
           # Grant GitHub Actions service principal access to state storage
           echo "🔐 Ensuring service principal has storage access..."
           STORAGE_ACCOUNT_ID=$(az storage account show \
             --name $STORAGE_ACCOUNT \
             --resource-group $RESOURCE_GROUP \
             --query id -o tsv)
-          
+
           SP_OBJECT_ID=$(az ad sp show \
             --id ${{ secrets.AZURE_CLIENT_ID }} \
             --query id -o tsv)
-          
+
           # Check if role assignment exists, if not create it
           if ! az role assignment list \
             --assignee $SP_OBJECT_ID \
             --role "Storage Blob Data Contributor" \
             --scope $STORAGE_ACCOUNT_ID \
             --query "[0].id" -o tsv &>/dev/null; then
-            
+
             echo "Granting Storage Blob Data Contributor role..."
             az role assignment create \
               --assignee $SP_OBJECT_ID \
@@ -233,7 +233,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "Checking for stuck state locks..."
-          
+
           # Check if blob is leased
           LEASE_STATE=$(az storage blob show \
             --account-name tfstateaccountopening \
@@ -241,12 +241,12 @@ jobs:
             --name dev.terraform.tfstate \
             --auth-mode login \
             --query "properties.lease.state" -o tsv 2>/dev/null || echo "unknown")
-          
+
           echo "State file lease state: $LEASE_STATE"
-          
+
           if [ "$LEASE_STATE" = "available" ]; then
             echo "✅ No active lease - state is available"
-            
+
             # Clear lock metadata if present but lease is free
             echo "Clearing any stale lock metadata..."
             az storage blob metadata update \
@@ -255,7 +255,7 @@ jobs:
               --name dev.terraform.tfstate \
               --auth-mode login \
               --metadata terraformlockid= 2>/dev/null || echo "No metadata to clear"
-            
+
             echo "✅ State lock cleared"
           else
             echo "⚠️  State has active lease: $LEASE_STATE"
@@ -281,11 +281,11 @@ jobs:
           echo "=========================================="
           echo "Checking for existing resources to import"
           echo "=========================================="
-          
+
           # Read location from terraform.tfvars to match actual deployment
           LOCATION=$(grep '^location' environments/dev/terraform.tfvars | awk -F'"' '{print $2}')
           echo "Location from tfvars: $LOCATION"
-          
+
           # Map location to short code
           case "$LOCATION" in
             "eastus") LOC_CODE="eus" ;;
@@ -295,12 +295,12 @@ jobs:
             "centralus") LOC_CODE="cus" ;;
             *) LOC_CODE="eus2" ;;
           esac
-          
+
           echo "Location code: $LOC_CODE"
-          
+
           ENVIRONMENT="dev"
           PROJECT="account-opening"
-          
+
           # Resource names following locals.tf patterns
           RG_NAME="rg-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
           ACR_NAME="acr$(echo $PROJECT | tr -d '-')${ENVIRONMENT}${LOC_CODE}"
@@ -310,27 +310,27 @@ jobs:
           LOG_NAME="log-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
           IDENTITY_NAME="id-${PROJECT}-${ENVIRONMENT}-workload"
           NSG_NAME="${ENVIRONMENT}-aks-nsg"
-          
+
           # Function to import resource if exists and not in state
           import_if_needed() {
             local RESOURCE_TYPE=$1
             local TERRAFORM_ADDRESS=$2
             local AZURE_NAME=$3
             local AZURE_COMMAND=$4
-            
+
             echo ""
             echo "Checking: $RESOURCE_TYPE ($AZURE_NAME)"
-            
+
             if eval "$AZURE_COMMAND" &>/dev/null; then
               echo "  ✓ Resource exists in Azure"
-              
+
               if terraform state list | grep -q "^${TERRAFORM_ADDRESS}$"; then
                 echo "  ✓ Already in Terraform state"
               else
                 echo "  ⚠ Not in state - importing..."
                 RESOURCE_ID=$(eval "$AZURE_COMMAND --query id -o tsv")
                 echo "  ID: $RESOURCE_ID"
-                
+
                 if terraform import -var-file=environments/dev/terraform.tfvars \
                   "$TERRAFORM_ADDRESS" "$RESOURCE_ID" 2>&1 | tee /tmp/import.log; then
                   echo "  ✓ Import successful"
@@ -343,91 +343,91 @@ jobs:
               echo "  ○ Does not exist (will be created)"
             fi
           }
-          
+
           # Import all resources
           import_if_needed "Resource Group" \
             "azurerm_resource_group.rg" \
             "$RG_NAME" \
             "az group show --name $RG_NAME"
-          
+
           import_if_needed "Virtual Network" \
             "azurerm_virtual_network.vnet" \
             "$VNET_NAME" \
             "az network vnet show --name $VNET_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "AKS Subnet" \
             "azurerm_subnet.aks_subnet" \
             "aks-subnet" \
             "az network vnet subnet show --name aks-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "ACR Subnet" \
             "azurerm_subnet.acr_subnet" \
             "acr-subnet" \
             "az network vnet subnet show --name acr-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "Network Security Group" \
             "azurerm_network_security_group.aks_nsg" \
             "$NSG_NAME" \
             "az network nsg show --name $NSG_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "NSG Association" \
             "azurerm_subnet_network_security_group_association.aks_nsg_assoc" \
             "aks-subnet-nsg" \
             "az network vnet subnet show --name aks-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME --query 'networkSecurityGroup.id'"
-          
+
           import_if_needed "Log Analytics Workspace" \
             "azurerm_log_analytics_workspace.aks_logs" \
             "$LOG_NAME" \
             "az monitor log-analytics workspace show --workspace-name $LOG_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "Container Registry" \
             "azurerm_container_registry.acr" \
             "$ACR_NAME" \
             "az acr show --name $ACR_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "ACR Private Endpoint" \
             "azurerm_private_endpoint.acr_endpoint" \
             "pe-$ACR_NAME" \
             "az network private-endpoint show --name pe-$ACR_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "PostgreSQL Server" \
             "azurerm_postgresql_flexible_server.db" \
             "$POSTGRES_NAME" \
             "az postgres flexible-server show --name $POSTGRES_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "PostgreSQL Database: customerdb" \
             "azurerm_postgresql_flexible_server_database.customerdb" \
             "customerdb" \
             "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name customerdb"
-          
+
           import_if_needed "PostgreSQL Database: documentdb" \
             "azurerm_postgresql_flexible_server_database.documentdb" \
             "documentdb" \
             "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name documentdb"
-          
+
           import_if_needed "PostgreSQL Database: accountdb" \
             "azurerm_postgresql_flexible_server_database.accountdb" \
             "accountdb" \
             "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name accountdb"
-          
+
           import_if_needed "PostgreSQL Database: notificationdb" \
             "azurerm_postgresql_flexible_server_database.notificationdb" \
             "notificationdb" \
             "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name notificationdb"
-          
+
           import_if_needed "Workload Identity" \
             "azurerm_user_assigned_identity.workload_identity" \
             "$IDENTITY_NAME" \
             "az identity show --name $IDENTITY_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "AKS Cluster" \
             "azurerm_kubernetes_cluster.aks" \
             "$AKS_NAME" \
             "az aks show --name $AKS_NAME --resource-group $RG_NAME"
-          
+
           # Note: Some resources like role assignments and federated credentials
           # are harder to check/import, so we let Terraform handle them
-          
+
           echo ""
           echo "=========================================="
           echo "✓ Resource import check complete"
@@ -437,7 +437,7 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           echo "Checking if PostgreSQL server is being deleted..."
-          
+
           # Read location from terraform.tfvars
           LOCATION=$(grep '^location' environments/dev/terraform.tfvars | awk -F'"' '{print $2}')
           case "$LOCATION" in
@@ -448,33 +448,33 @@ jobs:
             "centralus") LOC_CODE="cus" ;;
             *) LOC_CODE="eus2" ;;
           esac
-          
+
           POSTGRES_NAME="psql-account-opening-dev-${LOC_CODE}"
           RG_NAME="rg-account-opening-dev-${LOC_CODE}"
-          
+
           echo "Checking: $POSTGRES_NAME in $RG_NAME"
-          
+
           # Check if server exists and its state
           if az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" &>/dev/null; then
             STATE=$(az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" --query "state" -o tsv 2>/dev/null || echo "NotFound")
-            
+
             if [ "$STATE" = "Dropping" ]; then
               echo "⚠️  PostgreSQL server is being deleted (State: Dropping)"
               echo "Waiting for deletion to complete (max 10 minutes)..."
-              
+
               for i in {1..60}; do
                 sleep 10
                 if ! az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" &>/dev/null; then
                   echo "✅ PostgreSQL server deleted successfully"
                   break
                 fi
-                
+
                 CURRENT_STATE=$(az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" --query "state" -o tsv 2>/dev/null || echo "NotFound")
                 if [ "$CURRENT_STATE" != "Dropping" ]; then
                   echo "✅ PostgreSQL server state changed to: $CURRENT_STATE"
                   break
                 fi
-                
+
                 echo "  Still dropping... (${i}0 seconds elapsed)"
               done
             else
@@ -488,31 +488,31 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           echo "Creating Terraform plan for dev environment..."
-          
+
           # Retry logic for state lock conflicts
           MAX_RETRIES=3
           RETRY_COUNT=0
-          
+
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
-            
+
             if terraform plan -var-file=environments/dev/terraform.tfvars -out=tfplan; then
               echo "✅ Terraform plan succeeded"
               exit 0
             fi
-            
+
             RETRY_COUNT=$((RETRY_COUNT + 1))
-            
+
             if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
               WAIT_TIME=$((RETRY_COUNT * 30))
               echo "⚠️  Plan failed, waiting ${WAIT_TIME} seconds before retry..."
               sleep $WAIT_TIME
             fi
           done
-          
+
           echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
           exit 1
-          
+
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
@@ -525,7 +525,7 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           echo "Reading Terraform outputs..."
-          
+
           # Get outputs from created infrastructure
           ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
           ACR_NAME=$(terraform output -raw acr_name)
@@ -533,11 +533,11 @@ jobs:
           AKS_RESOURCE_GROUP=$(terraform output -raw aks_resource_group_name)
           POSTGRES_HOST=$(terraform output -raw postgres_fqdn)
           MANAGED_IDENTITY_CLIENT_ID=$(terraform output -raw workload_identity_client_id)
-          
+
           echo "📦 ACR: $ACR_LOGIN_SERVER"
           echo "☸️  AKS: $AKS_CLUSTER_NAME"
           echo "🗄️  PostgreSQL: $POSTGRES_HOST"
-          
+
           # Set as job outputs
           echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
           echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
@@ -573,7 +573,7 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
+
       - name: Get ACR information
         id: get-acr
         run: |
@@ -587,12 +587,12 @@ jobs:
             "centralus") LOC_CODE="cus" ;;
             *) LOC_CODE="eus2" ;;
           esac
-          
+
           PROJECT="account-opening"
           ENV="dev"
           RG_NAME="rg-${PROJECT}-${ENV}-${LOC_CODE}"
           ACR_NAME="acr$(echo $PROJECT | tr -d '-')${ENV}${LOC_CODE}"
-          
+
           # Get ACR info from Terraform outputs or from existing resources
           if [ "${{ needs.terraform-deploy-dev.result }}" == "success" ]; then
             echo "✓ Using ACR info from Terraform outputs"
@@ -636,32 +636,32 @@ jobs:
           ACR_LOGIN_SERVER: ${{ steps.get-acr.outputs.acr_login_server }}
         run: |
           echo "Building Docker images..."
-          
+
           # Customer Service
           echo "Building customer-service..."
           docker build -t $ACR_LOGIN_SERVER/customer-service:$IMAGE_TAG ./customer-service
           docker push $ACR_LOGIN_SERVER/customer-service:$IMAGE_TAG
-          
+
           # Document Service
           echo "Building document-service..."
           docker build -t $ACR_LOGIN_SERVER/document-service:$IMAGE_TAG ./document-service
           docker push $ACR_LOGIN_SERVER/document-service:$IMAGE_TAG
-          
+
           # Account Service
           echo "Building account-service..."
           docker build -t $ACR_LOGIN_SERVER/account-service:$IMAGE_TAG ./account-service
           docker push $ACR_LOGIN_SERVER/account-service:$IMAGE_TAG
-          
+
           # Notification Service
           echo "Building notification-service..."
           docker build -t $ACR_LOGIN_SERVER/notification-service:$IMAGE_TAG ./notification-service
           docker push $ACR_LOGIN_SERVER/notification-service:$IMAGE_TAG
-          
+
           # Frontend UI
           echo "Building frontend-ui..."
           docker build -t $ACR_LOGIN_SERVER/frontend-ui:$IMAGE_TAG ./frontend/account-opening-ui
           docker push $ACR_LOGIN_SERVER/frontend-ui:$IMAGE_TAG
-          
+
           echo "✅ All images pushed to ACR!"
 
   # ============================================
@@ -690,14 +690,14 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
+
       - name: Get deployment info
         id: get-info
         run: |
           # Determine location code from terraform.tfvars
           LOCATION=$(grep '^location' infrastructure/environments/dev/terraform.tfvars | awk -F'"' '{print $2}')
           echo "Location from tfvars: $LOCATION"
-          
+
           # Map location to short code
           case "$LOCATION" in
             "eastus") LOC_CODE="eus" ;;
@@ -707,9 +707,9 @@ jobs:
             "centralus") LOC_CODE="cus" ;;
             *) LOC_CODE="eus2" ;;
           esac
-          
+
           echo "Location code: $LOC_CODE"
-          
+
           # Build resource names
           PROJECT="account-opening"
           ENV="dev"
@@ -718,11 +718,11 @@ jobs:
           ACR_NAME="acr$(echo $PROJECT | tr -d '-')${ENV}${LOC_CODE}"
           POSTGRES_NAME="psql-${PROJECT}-${ENV}-${LOC_CODE}"
           IDENTITY_NAME="id-${PROJECT}-${ENV}-workload"
-          
+
           echo "Resource Group: $RG_NAME"
           echo "AKS Cluster: $AKS_NAME"
           echo "ACR Name: $ACR_NAME"
-          
+
           # Get info from Terraform outputs or from existing resources
           if [ "${{ needs.terraform-deploy-dev.result }}" == "success" ]; then
             echo "✓ Using info from Terraform outputs"
@@ -736,7 +736,7 @@ jobs:
             ACR_LOGIN_SERVER="${{ needs.build-and-push-dev.outputs.acr_login_server }}"
             POSTGRES_HOST=$(az postgres flexible-server show --name $POSTGRES_NAME --resource-group $RG_NAME --query fullyQualifiedDomainName -o tsv)
             IDENTITY_CLIENT_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RG_NAME --query clientId -o tsv)
-            
+
             echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
             echo "aks_cluster_name=$AKS_NAME" >> $GITHUB_OUTPUT
             echo "aks_resource_group=$RG_NAME" >> $GITHUB_OUTPUT
@@ -744,7 +744,7 @@ jobs:
             echo "managed_identity_client_id=$IDENTITY_CLIENT_ID" >> $GITHUB_OUTPUT
           else
             echo "✓ Fetching all info from Azure (k8s-only changes)"
-            
+
             # Check if resource group exists
             if ! az group show --name "$RG_NAME" &>/dev/null; then
               echo "❌ Error: Infrastructure not yet deployed!"
@@ -752,11 +752,11 @@ jobs:
               echo "   Please run workflow manually or push infrastructure changes first."
               exit 1
             fi
-            
+
             ACR_LOGIN_SERVER=$(az acr show --name $ACR_NAME --resource-group $RG_NAME --query loginServer -o tsv)
             POSTGRES_HOST=$(az postgres flexible-server show --name $POSTGRES_NAME --resource-group $RG_NAME --query fullyQualifiedDomainName -o tsv)
             IDENTITY_CLIENT_ID=$(az identity show --name $IDENTITY_NAME --resource-group $RG_NAME --query clientId -o tsv)
-            
+
             echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
             echo "aks_cluster_name=$AKS_NAME" >> $GITHUB_OUTPUT
             echo "aks_resource_group=$RG_NAME" >> $GITHUB_OUTPUT
@@ -777,17 +777,17 @@ jobs:
           MANAGED_IDENTITY_CLIENT_ID: ${{ steps.get-info.outputs.managed_identity_client_id }}
         run: |
           echo "Updating Kubernetes manifests..."
-          
+
           # Replace ACR and image tags
           sed -i "s|<ACR_LOGIN_SERVER>|$ACR_LOGIN_SERVER|g" k8s/*.yaml
           sed -i "s|<TAG>|$IMAGE_TAG|g" k8s/*.yaml
-          
+
           # Replace managed identity for workload identity
           sed -i "s|<MANAGED_IDENTITY_CLIENT_ID>|$MANAGED_IDENTITY_CLIENT_ID|g" k8s/*.yaml
-          
+
           # Replace postgres host (no passwords - using managed identity!)
           sed -i "s|<POSTGRES_HOST>|$POSTGRES_HOST|g" k8s/*.yaml
-          
+
           echo "✅ Manifests updated!"
 
       - name: Deploy ConfigMaps and Secrets
@@ -845,7 +845,7 @@ jobs:
           echo "🌐 Services:"
           kubectl get services -o wide
           echo ""
-          
+
           # Wait for LoadBalancer IP (with timeout)
           echo "⏳ Waiting for Frontend LoadBalancer IP..."
           for i in {1..30}; do
@@ -869,7 +869,7 @@ jobs:
             echo "  Waiting for IP... ($i/30)"
             sleep 5
           done
-          
+
           echo "✅ Dev deployment complete!"
 
   # ============================================
@@ -893,7 +893,7 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
+
       - name: Get AKS credentials
         run: |
           LOCATION=$(grep '^location' infrastructure/environments/dev/terraform.tfvars | awk -F'"' '{print $2}')
@@ -902,10 +902,10 @@ jobs:
             "eastus2") LOC_CODE="eus2" ;;
             *) LOC_CODE="eus2" ;;
           esac
-          
+
           RG_NAME="rg-account-opening-dev-${LOC_CODE}"
           AKS_NAME="aks-account-opening-dev-${LOC_CODE}"
-          
+
           az aks get-credentials \
             --resource-group $RG_NAME \
             --name $AKS_NAME \
@@ -914,20 +914,20 @@ jobs:
       - name: Wait for all pods to be ready
         run: |
           echo "⏳ Waiting for all pods to be ready (max 5 minutes)..."
-          
+
           for i in {1..60}; do
             NOT_READY=$(kubectl get pods --no-headers | grep -v "Running\|Completed" | wc -l || echo "0")
-            
+
             if [ "$NOT_READY" -eq "0" ]; then
               echo "✅ All pods are ready!"
               kubectl get pods
               break
             fi
-            
+
             echo "  Waiting... ($i/60) - $NOT_READY pods not ready yet"
             sleep 5
           done
-          
+
           # Show final status
           echo ""
           echo "Final pod status:"
@@ -939,15 +939,15 @@ jobs:
           echo "=========================================="
           echo "🔍 AUTOMATED HEALTH CHECKS"
           echo "=========================================="
-          
+
           TESTS_PASSED=0
           TESTS_FAILED=0
-          
+
           # Test 1: Check all pods are running
           echo ""
           echo "Test 1: Checking pod status..."
           NOT_READY=$(kubectl get pods --no-headers | grep -v "1/1.*Running" | wc -l || echo "0")
-          
+
           if [ "$NOT_READY" -eq "0" ]; then
             echo "✅ PASS: All pods are running (1/1)"
             TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -956,12 +956,12 @@ jobs:
             kubectl get pods | grep -v "1/1.*Running" || true
             TESTS_FAILED=$((TESTS_FAILED + 1))
           fi
-          
+
           # Test 2: Check frontend LoadBalancer IP
           echo ""
           echo "Test 2: Checking frontend LoadBalancer..."
           FRONTEND_IP=$(kubectl get svc frontend-ui -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
-          
+
           if [ -n "$FRONTEND_IP" ]; then
             echo "✅ PASS: LoadBalancer IP assigned: $FRONTEND_IP"
             echo "frontend_url=http://$FRONTEND_IP" >> $GITHUB_OUTPUT
@@ -970,13 +970,13 @@ jobs:
             echo "❌ FAIL: No LoadBalancer IP assigned"
             TESTS_FAILED=$((TESTS_FAILED + 1))
           fi
-          
+
           # Test 3: Check frontend health endpoint
           echo ""
           echo "Test 3: Checking frontend health..."
           if [ -n "$FRONTEND_IP" ]; then
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://$FRONTEND_IP/health" || echo "000")
-            
+
             if [ "$HTTP_CODE" -eq "200" ]; then
               echo "✅ PASS: Frontend health endpoint returns 200 OK"
               TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -987,19 +987,19 @@ jobs:
           else
             echo "⚠️  SKIP: No LoadBalancer IP available"
           fi
-          
+
           # Test 4: Check backend services health
           echo ""
           echo "Test 4: Checking backend services health..."
           SERVICES="customer-service document-service account-service notification-service"
           ALL_HEALTHY=true
-          
+
           for SERVICE in $SERVICES; do
             POD=$(kubectl get pods -l app=$SERVICE -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-            
+
             if [ -n "$POD" ]; then
               HEALTH=$(kubectl exec $POD -- wget -qO- http://localhost:8081/actuator/health 2>/dev/null || echo "")
-              
+
               if echo "$HEALTH" | grep -q '"status":"UP"'; then
                 echo "  ✅ $SERVICE: UP"
               else
@@ -1011,7 +1011,7 @@ jobs:
               ALL_HEALTHY=false
             fi
           done
-          
+
           if [ "$ALL_HEALTHY" = true ]; then
             echo "✅ PASS: All backend services are healthy"
             TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -1019,15 +1019,15 @@ jobs:
             echo "❌ FAIL: Some backend services are unhealthy"
             TESTS_FAILED=$((TESTS_FAILED + 1))
           fi
-          
+
           # Test 5: Database connectivity
           echo ""
           echo "Test 5: Checking database connectivity..."
           CUSTOMER_POD=$(kubectl get pods -l app=customer-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-          
+
           if [ -n "$CUSTOMER_POD" ]; then
             DB_HEALTH=$(kubectl exec $CUSTOMER_POD -- wget -qO- http://localhost:8081/actuator/health/db 2>/dev/null || echo "")
-            
+
             if echo "$DB_HEALTH" | grep -q '"status":"UP"'; then
               echo "✅ PASS: Database connectivity verified"
               TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -1038,7 +1038,7 @@ jobs:
           else
             echo "⚠️  SKIP: No customer-service pod found"
           fi
-          
+
           # Summary
           echo ""
           echo "=========================================="
@@ -1047,7 +1047,7 @@ jobs:
           echo "✅ Tests Passed: $TESTS_PASSED"
           echo "❌ Tests Failed: $TESTS_FAILED"
           echo "=========================================="
-          
+
           if [ "$TESTS_FAILED" -eq "0" ]; then
             echo "tests_passed=true" >> $GITHUB_OUTPUT
             echo ""
@@ -1084,14 +1084,14 @@ jobs:
         id: resources
         run: |
           cd infrastructure/environments/dev
-          
+
           LOCATION=$(grep '^location' terraform.tfvars | awk -F'"' '{print $2}')
           case "$LOCATION" in
             "eastus") LOCATION_CODE="eus" ;;
             "eastus2") LOCATION_CODE="eus2" ;;
             *) LOCATION_CODE="eus2" ;;
           esac
-          
+
           echo "RG_NAME=rg-account-opening-dev-${LOCATION_CODE}" >> $GITHUB_OUTPUT
           echo "AKS_NAME=aks-account-opening-dev-${LOCATION_CODE}" >> $GITHUB_OUTPUT
           echo "POSTGRES_NAME=psql-account-opening-dev-${LOCATION_CODE}" >> $GITHUB_OUTPUT
@@ -1100,17 +1100,17 @@ jobs:
         continue-on-error: true
         run: |
           echo "⚠️  Tests failed - stopping infrastructure to save costs..."
-          
+
           echo "🛑 Stopping AKS cluster..."
           az aks stop \
             --name ${{ steps.resources.outputs.AKS_NAME }} \
             --resource-group ${{ steps.resources.outputs.RG_NAME }} || true
-          
+
           echo "🛑 Stopping PostgreSQL server..."
           az postgres flexible-server stop \
             --name ${{ steps.resources.outputs.POSTGRES_NAME }} \
             --resource-group ${{ steps.resources.outputs.RG_NAME }} || true
-          
+
           echo ""
           echo "=========================================="
           echo "⚠️  DEPLOYMENT TESTS FAILED"
@@ -1176,7 +1176,7 @@ jobs:
           echo "💡 Tip: APPROVE to save money, REJECT to keep running"
           echo ""
           echo "action=stop" >> $GITHUB_OUTPUT
-  
+
   # ============================================
   # JOB 5: Stop Infrastructure After Deployment
   # ============================================
@@ -1200,7 +1200,7 @@ jobs:
         id: resources
         run: |
           cd infrastructure/environments/dev
-          
+
           LOCATION=$(grep '^location' terraform.tfvars | awk -F'"' '{print $2}')
           case "$LOCATION" in
             "eastus") LOCATION_CODE="eus" ;;
@@ -1210,11 +1210,11 @@ jobs:
             "centralus") LOCATION_CODE="cus" ;;
             *) LOCATION_CODE="eus2" ;;
           esac
-          
+
           RG_NAME="rg-account-opening-dev-${LOCATION_CODE}"
           AKS_NAME="aks-account-opening-dev-${LOCATION_CODE}"
           POSTGRES_NAME="psql-account-opening-dev-${LOCATION_CODE}"
-          
+
           echo "RG_NAME=$RG_NAME" >> $GITHUB_OUTPUT
           echo "AKS_NAME=$AKS_NAME" >> $GITHUB_OUTPUT
           echo "POSTGRES_NAME=$POSTGRES_NAME" >> $GITHUB_OUTPUT
@@ -1278,13 +1278,13 @@ jobs:
           echo "=========================================="
           echo ""
           echo "✅ Development environment deployed successfully"
-          
+
           if [ "${{ needs.stop-infrastructure-dev.result }}" == "success" ]; then
             echo "✅ Dev infrastructure stopped to save costs"
           else
             echo "ℹ️  Dev infrastructure still running"
           fi
-          
+
           echo "✅ Ready for production deployment"
           echo ""
           echo "⚠️  Production deployment will begin after manual approval"
@@ -1336,22 +1336,22 @@ jobs:
       - name: Setup Terraform State Backend
         run: |
           echo "🔍 Checking if Terraform state backend exists..."
-          
+
           RESOURCE_GROUP="terraform-state-rg"
           STORAGE_ACCOUNT="tfstateaccountopening"
           CONTAINER="tfstate"
           LOCATION="eastus"
-          
+
           if az storage account show --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP &>/dev/null; then
             echo "✅ Backend storage account already exists"
           else
             echo "📦 Creating Terraform state backend..."
-            
+
             az group create \
               --name $RESOURCE_GROUP \
               --location $LOCATION \
               --tags purpose=terraform-state managed_by=github-actions
-            
+
             az storage account create \
               --name $STORAGE_ACCOUNT \
               --resource-group $RESOURCE_GROUP \
@@ -1362,42 +1362,42 @@ jobs:
               --min-tls-version TLS1_2 \
               --allow-blob-public-access false \
               --tags purpose=terraform-state managed_by=github-actions
-            
+
             az storage account blob-service-properties update \
               --account-name $STORAGE_ACCOUNT \
               --resource-group $RESOURCE_GROUP \
               --enable-versioning true
-            
+
             az storage container create \
               --name $CONTAINER \
               --account-name $STORAGE_ACCOUNT \
               --auth-mode login
-            
+
             az storage account blob-service-properties update \
               --account-name $STORAGE_ACCOUNT \
               --resource-group $RESOURCE_GROUP \
               --enable-delete-retention true \
               --delete-retention-days 30
-            
+
             echo "✅ Backend storage created successfully!"
           fi
-          
+
           echo "🔐 Ensuring service principal has storage access..."
           STORAGE_ACCOUNT_ID=$(az storage account show \
             --name $STORAGE_ACCOUNT \
             --resource-group $RESOURCE_GROUP \
             --query id -o tsv)
-          
+
           SP_OBJECT_ID=$(az ad sp show \
             --id ${{ secrets.AZURE_CLIENT_ID }} \
             --query id -o tsv)
-          
+
           if ! az role assignment list \
             --assignee $SP_OBJECT_ID \
             --role "Storage Blob Data Contributor" \
             --scope $STORAGE_ACCOUNT_ID \
             --query "[0].id" -o tsv &>/dev/null; then
-            
+
             echo "Granting Storage Blob Data Contributor role..."
             az role assignment create \
               --assignee $SP_OBJECT_ID \
@@ -1420,7 +1420,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "Checking for stuck state locks..."
-          
+
           # Check if blob is leased
           LEASE_STATE=$(az storage blob show \
             --account-name tfstateaccountopening \
@@ -1428,12 +1428,12 @@ jobs:
             --name prod.terraform.tfstate \
             --auth-mode login \
             --query "properties.lease.state" -o tsv 2>/dev/null || echo "unknown")
-          
+
           echo "State file lease state: $LEASE_STATE"
-          
+
           if [ "$LEASE_STATE" = "available" ]; then
             echo "✅ No active lease - state is available"
-            
+
             # Clear lock metadata if present but lease is free
             echo "Clearing any stale lock metadata..."
             az storage blob metadata update \
@@ -1442,7 +1442,7 @@ jobs:
               --name prod.terraform.tfstate \
               --auth-mode login \
               --metadata terraformlockid= 2>/dev/null || echo "No metadata to clear"
-            
+
             echo "✅ State lock cleared"
           else
             echo "⚠️  State has active lease: $LEASE_STATE"
@@ -1468,12 +1468,12 @@ jobs:
           echo "=========================================="
           echo "Checking for existing production resources"
           echo "=========================================="
-          
+
           ENVIRONMENT="prod"
           LOCATION="eastus"
           PROJECT="account-opening"
           LOC_CODE="eus"
-          
+
           RG_NAME="rg-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
           ACR_NAME="acr$(echo $PROJECT | tr -d '-')${ENVIRONMENT}${LOC_CODE}"
           AKS_NAME="aks-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
@@ -1482,26 +1482,26 @@ jobs:
           LOG_NAME="log-${PROJECT}-${ENVIRONMENT}-${LOC_CODE}"
           IDENTITY_NAME="id-${PROJECT}-${ENVIRONMENT}-workload"
           NSG_NAME="${ENVIRONMENT}-aks-nsg"
-          
+
           import_if_needed() {
             local RESOURCE_TYPE=$1
             local TERRAFORM_ADDRESS=$2
             local AZURE_NAME=$3
             local AZURE_COMMAND=$4
-            
+
             echo ""
             echo "Checking: $RESOURCE_TYPE ($AZURE_NAME)"
-            
+
             if eval "$AZURE_COMMAND" &>/dev/null; then
               echo "  ✓ Resource exists in Azure"
-              
+
               if terraform state list | grep -q "^${TERRAFORM_ADDRESS}$"; then
                 echo "  ✓ Already in Terraform state"
               else
                 echo "  ⚠ Not in state - importing..."
                 RESOURCE_ID=$(eval "$AZURE_COMMAND --query id -o tsv")
                 echo "  ID: $RESOURCE_ID"
-                
+
                 if terraform import -var-file=environments/prod/terraform.tfvars \
                   "$TERRAFORM_ADDRESS" "$RESOURCE_ID" 2>&1 | tee /tmp/import.log; then
                   echo "  ✓ Import successful"
@@ -1514,87 +1514,87 @@ jobs:
               echo "  ○ Does not exist (will be created)"
             fi
           }
-          
+
           import_if_needed "Resource Group" \
             "azurerm_resource_group.rg" \
             "$RG_NAME" \
             "az group show --name $RG_NAME"
-          
+
           import_if_needed "Virtual Network" \
             "azurerm_virtual_network.vnet" \
             "$VNET_NAME" \
             "az network vnet show --name $VNET_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "AKS Subnet" \
             "azurerm_subnet.aks_subnet" \
             "aks-subnet" \
             "az network vnet subnet show --name aks-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "ACR Subnet" \
             "azurerm_subnet.acr_subnet" \
             "acr-subnet" \
             "az network vnet subnet show --name acr-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "Network Security Group" \
             "azurerm_network_security_group.aks_nsg" \
             "$NSG_NAME" \
             "az network nsg show --name $NSG_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "NSG Association" \
             "azurerm_subnet_network_security_group_association.aks_nsg_assoc" \
             "aks-subnet-nsg" \
             "az network vnet subnet show --name aks-subnet --vnet-name $VNET_NAME --resource-group $RG_NAME --query 'networkSecurityGroup.id'"
-          
+
           import_if_needed "Log Analytics Workspace" \
             "azurerm_log_analytics_workspace.aks_logs" \
             "$LOG_NAME" \
             "az monitor log-analytics workspace show --workspace-name $LOG_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "Container Registry" \
             "azurerm_container_registry.acr" \
             "$ACR_NAME" \
             "az acr show --name $ACR_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "ACR Private Endpoint" \
             "azurerm_private_endpoint.acr_endpoint" \
             "pe-$ACR_NAME" \
             "az network private-endpoint show --name pe-$ACR_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "PostgreSQL Server" \
             "azurerm_postgresql_flexible_server.db" \
             "$POSTGRES_NAME" \
             "az postgres flexible-server show --name $POSTGRES_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "PostgreSQL Database: customerdb" \
             "azurerm_postgresql_flexible_server_database.customerdb" \
             "customerdb" \
             "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name customerdb"
-          
+
           import_if_needed "PostgreSQL Database: documentdb" \
             "azurerm_postgresql_flexible_server_database.documentdb" \
             "documentdb" \
             "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name documentdb"
-          
+
           import_if_needed "PostgreSQL Database: accountdb" \
             "azurerm_postgresql_flexible_server_database.accountdb" \
             "accountdb" \
             "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name accountdb"
-          
+
           import_if_needed "PostgreSQL Database: notificationdb" \
             "azurerm_postgresql_flexible_server_database.notificationdb" \
             "notificationdb" \
             "az postgres flexible-server db show --server-name $POSTGRES_NAME --resource-group $RG_NAME --database-name notificationdb"
-          
+
           import_if_needed "Workload Identity" \
             "azurerm_user_assigned_identity.workload_identity" \
             "$IDENTITY_NAME" \
             "az identity show --name $IDENTITY_NAME --resource-group $RG_NAME"
-          
+
           import_if_needed "AKS Cluster" \
             "azurerm_kubernetes_cluster.aks" \
             "$AKS_NAME" \
             "az aks show --name $AKS_NAME --resource-group $RG_NAME"
-          
+
           echo ""
           echo "=========================================="
           echo "✓ Resource import check complete"
@@ -1606,28 +1606,28 @@ jobs:
           echo "Checking if PostgreSQL server is being deleted..."
           POSTGRES_NAME="psql-account-opening-prod-eus"
           RG_NAME="rg-account-opening-prod-eus"
-          
+
           # Check if server exists and its state
           if az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" &>/dev/null; then
             STATE=$(az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" --query "state" -o tsv 2>/dev/null || echo "NotFound")
-            
+
             if [ "$STATE" = "Dropping" ]; then
               echo "⚠️  PostgreSQL server is being deleted (State: Dropping)"
               echo "Waiting for deletion to complete (max 10 minutes)..."
-              
+
               for i in {1..60}; do
                 sleep 10
                 if ! az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" &>/dev/null; then
                   echo "✅ PostgreSQL server deleted successfully"
                   break
                 fi
-                
+
                 CURRENT_STATE=$(az postgres flexible-server show --name "$POSTGRES_NAME" --resource-group "$RG_NAME" --query "state" -o tsv 2>/dev/null || echo "NotFound")
                 if [ "$CURRENT_STATE" != "Dropping" ]; then
                   echo "✅ PostgreSQL server state changed to: $CURRENT_STATE"
                   break
                 fi
-                
+
                 echo "  Still dropping... (${i}0 seconds elapsed)"
               done
             else
@@ -1641,31 +1641,31 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           echo "Creating Terraform plan for prod environment..."
-          
+
           # Retry logic for state lock conflicts
           MAX_RETRIES=3
           RETRY_COUNT=0
-          
+
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
-            
+
             if terraform plan -var-file=environments/prod/terraform.tfvars -out=tfplan; then
               echo "✅ Terraform plan succeeded"
               exit 0
             fi
-            
+
             RETRY_COUNT=$((RETRY_COUNT + 1))
-            
+
             if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
               WAIT_TIME=$((RETRY_COUNT * 30))
               echo "⚠️  Plan failed, waiting ${WAIT_TIME} seconds before retry..."
               sleep $WAIT_TIME
             fi
           done
-          
+
           echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
           exit 1
-          
+
       - name: Production Deployment Warning
         run: |
           echo "=========================================="
@@ -1690,18 +1690,18 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           echo "Reading Terraform outputs..."
-          
+
           ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
           ACR_NAME=$(terraform output -raw acr_name)
           AKS_CLUSTER_NAME=$(terraform output -raw aks_cluster_name)
           AKS_RESOURCE_GROUP=$(terraform output -raw aks_resource_group_name)
           POSTGRES_HOST=$(terraform output -raw postgres_fqdn)
           MANAGED_IDENTITY_CLIENT_ID=$(terraform output -raw workload_identity_client_id)
-          
+
           echo "📦 ACR: $ACR_LOGIN_SERVER"
           echo "☸️  AKS: $AKS_CLUSTER_NAME"
           echo "🗄️  PostgreSQL: $POSTGRES_HOST"
-          
+
           echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
           echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
           echo "aks_cluster_name=$AKS_CLUSTER_NAME" >> $GITHUB_OUTPUT
@@ -1751,22 +1751,22 @@ jobs:
           ACR_LOGIN_SERVER: ${{ needs.terraform-deploy-prod.outputs.acr_login_server }}
         run: |
           echo "Building Docker images for production..."
-          
+
           docker build -t $ACR_LOGIN_SERVER/customer-service:$IMAGE_TAG ./customer-service
           docker push $ACR_LOGIN_SERVER/customer-service:$IMAGE_TAG
-          
+
           docker build -t $ACR_LOGIN_SERVER/document-service:$IMAGE_TAG ./document-service
           docker push $ACR_LOGIN_SERVER/document-service:$IMAGE_TAG
-          
+
           docker build -t $ACR_LOGIN_SERVER/account-service:$IMAGE_TAG ./account-service
           docker push $ACR_LOGIN_SERVER/account-service:$IMAGE_TAG
-          
+
           docker build -t $ACR_LOGIN_SERVER/notification-service:$IMAGE_TAG ./notification-service
           docker push $ACR_LOGIN_SERVER/notification-service:$IMAGE_TAG
-          
+
           docker build -t $ACR_LOGIN_SERVER/frontend-ui:$IMAGE_TAG ./frontend/account-opening-ui
           docker push $ACR_LOGIN_SERVER/frontend-ui:$IMAGE_TAG
-          
+
           echo "✅ All production images pushed to ACR!"
 
   # ============================================
@@ -1800,12 +1800,12 @@ jobs:
           MANAGED_IDENTITY_CLIENT_ID: ${{ needs.terraform-deploy-prod.outputs.managed_identity_client_id }}
         run: |
           echo "Updating Kubernetes manifests for production..."
-          
+
           sed -i "s|<ACR_LOGIN_SERVER>|$ACR_LOGIN_SERVER|g" k8s/*.yaml
           sed -i "s|<TAG>|$IMAGE_TAG|g" k8s/*.yaml
           sed -i "s|<MANAGED_IDENTITY_CLIENT_ID>|$MANAGED_IDENTITY_CLIENT_ID|g" k8s/*.yaml
           sed -i "s|<POSTGRES_HOST>|$POSTGRES_HOST|g" k8s/*.yaml
-          
+
           echo "✅ Manifests updated!"
 
       - name: Deploy ConfigMaps and Secrets
@@ -1863,7 +1863,7 @@ jobs:
           echo "🌐 Services:"
           kubectl get services -o wide
           echo ""
-          
+
           # Wait for LoadBalancer IP (with timeout)
           echo "⏳ Waiting for Frontend LoadBalancer IP..."
           for i in {1..30}; do
@@ -1887,5 +1887,5 @@ jobs:
             echo "  Waiting for IP... ($i/30)"
             sleep 5
           done
-          
+
           echo "✅ Production deployment complete!"

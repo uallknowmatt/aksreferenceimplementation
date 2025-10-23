@@ -127,7 +127,7 @@ VNet: 10.0.0.0/16 (65,536 IP addresses)
 
 **AKS Subnet NSG:**
 - Allow: Inbound 443 (HTTPS) from Internet to LoadBalancer
-- Allow: Inbound 80 (HTTP) from Internet to LoadBalancer  
+- Allow: Inbound 80 (HTTP) from Internet to LoadBalancer
 - Allow: Pod-to-Pod communication within AKS
 - Allow: AKS → PostgreSQL on port 5432
 - Deny: All other inbound traffic

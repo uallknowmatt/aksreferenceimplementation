@@ -36,12 +36,12 @@ all_pods_ready=true
 if [ -n "$pods_json" ]; then
     # Parse JSON and check each pod
     pod_names=$(echo "$pods_json" | jq -r '.items[].metadata.name')
-    
+
     while IFS= read -r pod_name; do
         pod_status=$(echo "$pods_json" | jq -r ".items[] | select(.metadata.name==\"$pod_name\") | .status.phase")
         ready=$(echo "$pods_json" | jq -r ".items[] | select(.metadata.name==\"$pod_name\") | .status.containerStatuses[0].ready")
         restart_count=$(echo "$pods_json" | jq -r ".items[] | select(.metadata.name==\"$pod_name\") | .status.containerStatuses[0].restartCount")
-        
+
         if [ "$pod_status" != "Running" ] || [ "$ready" != "true" ]; then
             echo -e "  ${RED}❌ FAIL: $pod_name is $pod_status (Ready: $ready, Restarts: $restart_count)${NC}"
             all_pods_ready=false
@@ -110,18 +110,18 @@ for service in "${services[@]}"; do
     kubectl port-forward "service/$service" 8080:80 > /dev/null 2>&1 &
     pf_pid=$!
     sleep 3
-    
+
     # Test health endpoint
     health_response=$(curl -s "http://localhost:8080/actuator/health" 2>/dev/null)
     health_status=$(echo "$health_response" | jq -r '.status' 2>/dev/null)
-    
+
     if [ "$health_status" = "UP" ]; then
         echo -e "  ${GREEN}✅ PASS: $service is UP${NC}"
     else
         echo -e "  ${RED}❌ FAIL: $service status is $health_status${NC}"
         all_services_healthy=false
     fi
-    
+
     # Kill port-forward
     kill $pf_pid 2>/dev/null
     wait $pf_pid 2>/dev/null
@@ -144,7 +144,7 @@ pod_name=$(kubectl get pods -l app=customer-service -o jsonpath='{.items[0].meta
 
 if [ -n "$pod_name" ]; then
     db_test=$(kubectl exec "$pod_name" -- sh -c "wget -qO- http://localhost:8081/actuator/health/db 2>/dev/null" 2>/dev/null)
-    
+
     if echo "$db_test" | grep -q "UP"; then
         echo -e "  ${GREEN}✅ PASS: Database connectivity verified from customer-service${NC}"
         echo -e "\n${GREEN}✅ Test 5 PASSED: Database is accessible\n${NC}"
@@ -171,7 +171,7 @@ if [ -n "$frontend_ip" ]; then
         -d '{"firstName":"Test","lastName":"Customer","email":"test@example.com","phone":"+1-555-0100","dateOfBirth":"1990-01-01"}' \
         "http://$frontend_ip/api/customer/customers" \
         2>/dev/null)
-    
+
     if [ "$response_code" = "200" ] || [ "$response_code" = "201" ]; then
         echo -e "  ${GREEN}✅ PASS: Successfully created test customer${NC}"
         echo -e "\n${GREEN}✅ Test 6 PASSED: End-to-end flow working\n${NC}"

@@ -24,9 +24,9 @@ start_port_forward() {
     local service_name=$1
     local local_port=$2
     local remote_port=${3:-80}
-    
+
     echo -e "${YELLOW}Starting port-forward: $service_name -> localhost:$local_port${NC}"
-    
+
     # Start in new Git Bash window
     start bash -c "
         echo -e '${CYAN}==================================${NC}'

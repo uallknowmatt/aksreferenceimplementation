@@ -63,12 +63,12 @@ interval=10
 while [ $elapsed -lt $max_wait ]; do
     sleep $interval
     elapsed=$((elapsed + interval))
-    
+
     aks_state=$(az aks show -g "$RESOURCE_GROUP" -n "$AKS_NAME" --query "powerState.code" -o tsv 2>/dev/null || echo "Unknown")
     pg_state=$(az postgres flexible-server show -g "$RESOURCE_GROUP" -n "$PG_NAME" --query "state" -o tsv 2>/dev/null || echo "Unknown")
-    
+
     echo -e "${GRAY}   [$elapsed s] AKS: $aks_state | PostgreSQL: $pg_state${NC}"
-    
+
     if [ "$aks_state" = "Stopped" ] && [ "$pg_state" = "Stopped" ]; then
         break
     fi

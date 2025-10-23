@@ -55,7 +55,7 @@ dbs=("customer-db:customerdb" "document-db:documentdb" "account-db:accountdb" "n
 
 for db_info in "${dbs[@]}"; do
     IFS=':' read -r container dbname <<< "$db_info"
-    
+
     # Test connection
     if docker exec "$container" psql -U postgres -lqt 2>/dev/null | cut -d \| -f 1 | grep -qw "$dbname"; then
         echo -e "  ${GREEN}✅ $dbname exists in $container${NC}"

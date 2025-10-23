@@ -317,13 +317,13 @@ git commit -m "Normalize line endings"
 
 ## Benefits of This Configuration
 
-✅ **Consistent Environment** - Everyone uses same terminal and tools  
-✅ **Auto-Formatting** - Code stays clean automatically  
-✅ **Script Validation** - Catch errors before running  
-✅ **Quick Tasks** - Common operations one click away  
-✅ **Extension Recommendations** - New team members get right tools  
-✅ **Git Bash Default** - Best compatibility with scripts and Azure CLI  
-✅ **Azure/Kubernetes Integration** - Seamless cloud development  
+✅ **Consistent Environment** - Everyone uses same terminal and tools
+✅ **Auto-Formatting** - Code stays clean automatically
+✅ **Script Validation** - Catch errors before running
+✅ **Quick Tasks** - Common operations one click away
+✅ **Extension Recommendations** - New team members get right tools
+✅ **Git Bash Default** - Best compatibility with scripts and Azure CLI
+✅ **Azure/Kubernetes Integration** - Seamless cloud development
 
 ---
 

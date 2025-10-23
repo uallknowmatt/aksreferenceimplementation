@@ -84,33 +84,33 @@ if [ "$option" = "2" ]; then
     # Create bootstrap service principal
     echo ""
     echo -e "${YELLOW}🔧 Creating bootstrap service principal...${NC}"
-    
+
     sp_name="terraform-bootstrap-sp-$(date +%Y%m%d-%H%M%S)"
-    
+
     sp_json=$(az ad sp create-for-rbac \
         --name "$sp_name" \
         --role "Contributor" \
         --scopes "/subscriptions/$subscription_id" \
         2>&1)
-    
+
     if [ $? -eq 0 ]; then
         app_id=$(echo "$sp_json" | jq -r '.appId')
         password=$(echo "$sp_json" | jq -r '.password')
-        
+
         echo -e "${GREEN}✅ Bootstrap service principal created${NC}"
         echo -e "   ${CYAN}App ID: $app_id${NC}"
         echo ""
-        
+
         # Set environment variables
         echo -e "${YELLOW}🔐 Setting environment variables for Terraform...${NC}"
         export ARM_CLIENT_ID="$app_id"
         export ARM_CLIENT_SECRET="$password"
         export ARM_SUBSCRIPTION_ID="$subscription_id"
         export ARM_TENANT_ID="$tenant_id"
-        
+
         echo -e "${GREEN}✅ Environment variables set${NC}"
         echo ""
-        
+
         # Grant User Access Administrator
         echo -e "${YELLOW}🔧 Granting User Access Administrator role...${NC}"
         az role assignment create \
@@ -118,10 +118,10 @@ if [ "$option" = "2" ]; then
             --role "User Access Administrator" \
             --scope "/subscriptions/$subscription_id" \
             --output none 2>/dev/null
-        
+
         echo -e "${GREEN}✅ Additional permissions granted${NC}"
         echo ""
-        
+
         # Wait for propagation
         echo -e "${YELLOW}⏳ Waiting 30 seconds for role assignments to propagate...${NC}"
         sleep 30

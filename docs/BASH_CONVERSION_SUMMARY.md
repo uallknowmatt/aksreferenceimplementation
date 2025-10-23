@@ -61,7 +61,7 @@ NC='\033[0m' # No Color
   - Changed "PowerShell scripts" → "Bash scripts"
   - Updated all `.ps1` references to `.sh`
   - Updated all code examples to use Bash syntax
-  
+
 - ✅ Updated `.vscode/tasks.json`:
   - Changed `test-deployment.ps1` → `test-deployment.sh` in "Test: Run Health Checks" task
 
@@ -327,6 +327,6 @@ All 14 PowerShell scripts have been successfully converted to Bash, tested, docu
 
 ---
 
-**Created:** October 23, 2024  
-**Commits:** d2bf35e, 795f383  
+**Created:** October 23, 2024
+**Commits:** d2bf35e, 795f383
 **Status:** ✅ Complete

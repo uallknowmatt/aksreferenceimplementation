@@ -40,7 +40,7 @@ app_json=$(az ad app list --display-name "github-actions-oidc" 2>&1)
 if [ $? -eq 0 ]; then
     app_name=$(echo "$app_json" | jq -r '.[0].displayName' 2>/dev/null)
     client_id=$(echo "$app_json" | jq -r '.[0].appId' 2>/dev/null)
-    
+
     if [ -n "$app_name" ] && [ "$app_name" != "null" ]; then
         echo -e "${GREEN}✅ App Registration: $app_name${NC}"
         echo -e "   ${GRAY}Client ID: $client_id${NC}"
@@ -59,7 +59,7 @@ if [ -n "$client_id" ] && [ "$client_id" != "null" ]; then
     if [ $? -eq 0 ]; then
         cred_name=$(echo "$cred_json" | jq -r '.[0].name' 2>/dev/null)
         subject=$(echo "$cred_json" | jq -r '.[0].subject' 2>/dev/null)
-        
+
         if [ -n "$cred_name" ] && [ "$cred_name" != "null" ]; then
             echo -e "${GREEN}✅ Federated Credential: $cred_name${NC}"
             echo -e "   ${GRAY}Subject: $subject${NC}"

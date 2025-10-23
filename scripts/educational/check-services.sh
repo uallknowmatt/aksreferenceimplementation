@@ -34,9 +34,9 @@ all_good=true
 
 for service_name in customer document account notification; do
     IFS=' ' read -r port url <<< "${services[$service_name]}"
-    
+
     echo -e "${GRAY}Testing ${service_name^} Service on port ${port}...${NC}"
-    
+
     if response=$(curl -s -m 5 "$url" 2>/dev/null); then
         echo -e "  ${GREEN}✅ ${service_name^} Service is UP and responding${NC}"
         # Truncate response to 100 chars
@@ -45,7 +45,7 @@ for service_name in customer document account notification; do
     else
         all_good=false
         status_code=$(curl -s -o /dev/null -w "%{http_code}" -m 5 "$url" 2>/dev/null || echo "000")
-        
+
         if [ "$status_code" = "000" ]; then
             echo -e "  ${RED}❌ ${service_name^} Service is NOT running on port ${port}${NC}"
             echo -e "${YELLOW}     Make sure the service is started${NC}"

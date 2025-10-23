@@ -91,14 +91,14 @@ echo -e "${CYAN}========================================${NC}"
 if [ "$aks_state" = "Running" ]; then
     echo ""
     echo -e "${CYAN}🔍 Cluster Details:${NC}"
-    
+
     node_count=$(kubectl get nodes --no-headers 2>/dev/null | wc -l)
     if [ "$node_count" -gt 0 ]; then
         echo -e "   ${WHITE}Nodes: $node_count${NC}"
-        
+
         pod_count=$(kubectl get pods -A --no-headers 2>/dev/null | wc -l)
         echo -e "   ${WHITE}Total Pods: $pod_count${NC}"
-        
+
         echo ""
         echo -e "${GRAY}Recent pods:${NC}"
         kubectl get pods -A --sort-by=.metadata.creationTimestamp | tail -n 5

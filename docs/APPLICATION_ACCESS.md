@@ -475,7 +475,7 @@ kubectl get service frontend-ui
 3. **Add your IP to allowed list (if needed):**
    ```bash
    MY_IP=$(curl -s ifconfig.me)
-   
+
    az network nsg rule create \
      --resource-group rg-account-opening-dev-eus2 \
      --nsg-name nsg-aks-account-opening-dev-eus2 \

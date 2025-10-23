@@ -97,7 +97,7 @@ external_ip=""
 while [ $attempt -lt $max_attempts ] && [ -z "$external_ip" ]; do
     attempt=$((attempt + 1))
     external_ip=$(kubectl get svc frontend-ui -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
-    
+
     if [ -z "$external_ip" ]; then
         echo -e "  ${GRAY}Attempt $attempt/$max_attempts - Still pending...${NC}"
         sleep 5

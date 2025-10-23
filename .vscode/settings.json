@@ -1,12 +1,12 @@
 {
     "java.configuration.updateBuildConfiguration": "interactive",
-    
+
     // ============================================
     // Terminal Configuration
     // ============================================
     // Use Git Bash as default terminal for running scripts and Azure CLI
     "terminal.integrated.defaultProfile.windows": "Git Bash",
-    
+
     // Terminal profiles configuration
     "terminal.integrated.profiles.windows": {
         "Git Bash": {
@@ -26,7 +26,7 @@
             "icon": "terminal-cmd"
         }
     },
-    
+
     // ============================================
     // File Associations
     // ============================================
@@ -38,7 +38,7 @@
         "*.tf": "terraform",
         "*.tfvars": "terraform"
     },
-    
+
     // ============================================
     // Language-Specific Settings
     // ============================================
@@ -46,19 +46,19 @@
         "editor.defaultFormatter": "foxundermoon.shell-format",
         "editor.formatOnSave": true
     },
-    
+
     "[yaml]": {
         "editor.defaultFormatter": "redhat.vscode-yaml",
         "editor.formatOnSave": true,
         "editor.insertSpaces": true,
         "editor.tabSize": 2
     },
-    
+
     "[terraform]": {
         "editor.defaultFormatter": "hashicorp.terraform",
         "editor.formatOnSave": true
     },
-    
+
     "[markdown]": {
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
@@ -67,7 +67,7 @@
             "other": "off"
         }
     },
-    
+
     // ============================================
     // Shell Script Linting
     // ============================================
@@ -75,12 +75,12 @@
     "shellcheck.executablePath": "shellcheck",
     "shellcheck.exclude": [],
     "shellcheck.run": "onType",
-    
+
     // ============================================
     // Azure Extension Settings
     // ============================================
     "azureTerraform.terminal": "integrated",
-    
+
     // ============================================
     // Kubernetes Settings
     // ============================================
@@ -88,14 +88,14 @@
         "vs-kubernetes.crd-code-completion": "enabled",
         "vs-kubernetes.namespace": ""
     },
-    
+
     // ============================================
     // Git Settings
     // ============================================
     "git.enableSmartCommit": true,
     "git.confirmSync": false,
     "git.autofetch": true,
-    
+
     // ============================================
     // Editor Settings
     // ============================================
