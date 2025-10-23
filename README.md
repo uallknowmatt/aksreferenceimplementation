@@ -52,6 +52,7 @@ account-opening-system/
 
 ### Getting Started
 - **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Complete deployment guide for dev and production
+- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - How to test your deployed application in Azure
 - **[infrastructure/README.md](infrastructure/README.md)** - Infrastructure setup and configuration
 - **[infrastructure/environments/README.md](infrastructure/environments/README.md)** - Environment-specific configurations
 
@@ -120,6 +121,32 @@ Production deployments require manual approval:
 5. Production deployment proceeds after approval
 
 See **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** for complete deployment instructions.
+
+## Testing in Azure
+
+After deployment, test your application:
+
+### Quick Access
+1. Get the frontend LoadBalancer IP:
+   ```powershell
+   kubectl get service frontend-ui -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+   ```
+
+2. Open in browser: `http://<EXTERNAL-IP>` (e.g., `http://68.220.25.83`)
+
+3. Test the UI:
+   - Create customers
+   - Upload documents
+   - Open accounts
+   - View notifications
+
+### Detailed Testing
+See **[TESTING_GUIDE.md](TESTING_GUIDE.md)** for complete testing instructions including:
+- How to find external IPs
+- Testing frontend UI functionality
+- Testing backend services
+- Health checks and troubleshooting
+- Database connectivity testing
 
 ## Database Setup
 
