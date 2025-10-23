@@ -873,12 +873,265 @@ jobs:
           echo "✅ Dev deployment complete!"
 
   # ============================================
-  # JOB 4: Infrastructure Decision Gate - Keep or Stop
+  # JOB 4: Automated Health Check & Testing
+  # ============================================
+  test-deployment-dev:
+    name: Test Deployment (Automated Health Checks)
+    needs: [deploy-to-aks-dev]
+    if: always() && needs.deploy-to-aks-dev.result == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      tests_passed: ${{ steps.health-check.outputs.tests_passed }}
+      frontend_url: ${{ steps.health-check.outputs.frontend_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Get AKS credentials
+        run: |
+          LOCATION=$(grep '^location' infrastructure/environments/dev/terraform.tfvars | awk -F'"' '{print $2}')
+          case "$LOCATION" in
+            "eastus") LOC_CODE="eus" ;;
+            "eastus2") LOC_CODE="eus2" ;;
+            *) LOC_CODE="eus2" ;;
+          esac
+          
+          RG_NAME="rg-account-opening-dev-${LOC_CODE}"
+          AKS_NAME="aks-account-opening-dev-${LOC_CODE}"
+          
+          az aks get-credentials \
+            --resource-group $RG_NAME \
+            --name $AKS_NAME \
+            --overwrite-existing
+
+      - name: Wait for all pods to be ready
+        run: |
+          echo "⏳ Waiting for all pods to be ready (max 5 minutes)..."
+          
+          for i in {1..60}; do
+            NOT_READY=$(kubectl get pods --no-headers | grep -v "Running\|Completed" | wc -l || echo "0")
+            
+            if [ "$NOT_READY" -eq "0" ]; then
+              echo "✅ All pods are ready!"
+              kubectl get pods
+              break
+            fi
+            
+            echo "  Waiting... ($i/60) - $NOT_READY pods not ready yet"
+            sleep 5
+          done
+          
+          # Show final status
+          echo ""
+          echo "Final pod status:"
+          kubectl get pods
+
+      - name: Run automated health checks
+        id: health-check
+        run: |
+          echo "=========================================="
+          echo "🔍 AUTOMATED HEALTH CHECKS"
+          echo "=========================================="
+          
+          TESTS_PASSED=0
+          TESTS_FAILED=0
+          
+          # Test 1: Check all pods are running
+          echo ""
+          echo "Test 1: Checking pod status..."
+          NOT_READY=$(kubectl get pods --no-headers | grep -v "1/1.*Running" | wc -l || echo "0")
+          
+          if [ "$NOT_READY" -eq "0" ]; then
+            echo "✅ PASS: All pods are running (1/1)"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          else
+            echo "❌ FAIL: $NOT_READY pods are not running"
+            kubectl get pods | grep -v "1/1.*Running" || true
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          
+          # Test 2: Check frontend LoadBalancer IP
+          echo ""
+          echo "Test 2: Checking frontend LoadBalancer..."
+          FRONTEND_IP=$(kubectl get svc frontend-ui -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+          
+          if [ -n "$FRONTEND_IP" ]; then
+            echo "✅ PASS: LoadBalancer IP assigned: $FRONTEND_IP"
+            echo "frontend_url=http://$FRONTEND_IP" >> $GITHUB_OUTPUT
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          else
+            echo "❌ FAIL: No LoadBalancer IP assigned"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          
+          # Test 3: Check frontend health endpoint
+          echo ""
+          echo "Test 3: Checking frontend health..."
+          if [ -n "$FRONTEND_IP" ]; then
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://$FRONTEND_IP/health" || echo "000")
+            
+            if [ "$HTTP_CODE" -eq "200" ]; then
+              echo "✅ PASS: Frontend health endpoint returns 200 OK"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "❌ FAIL: Frontend health returned HTTP $HTTP_CODE"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+          else
+            echo "⚠️  SKIP: No LoadBalancer IP available"
+          fi
+          
+          # Test 4: Check backend services health
+          echo ""
+          echo "Test 4: Checking backend services health..."
+          SERVICES="customer-service document-service account-service notification-service"
+          ALL_HEALTHY=true
+          
+          for SERVICE in $SERVICES; do
+            POD=$(kubectl get pods -l app=$SERVICE -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+            
+            if [ -n "$POD" ]; then
+              HEALTH=$(kubectl exec $POD -- wget -qO- http://localhost:8081/actuator/health 2>/dev/null || echo "")
+              
+              if echo "$HEALTH" | grep -q '"status":"UP"'; then
+                echo "  ✅ $SERVICE: UP"
+              else
+                echo "  ❌ $SERVICE: DOWN or UNKNOWN"
+                ALL_HEALTHY=false
+              fi
+            else
+              echo "  ❌ $SERVICE: No pod found"
+              ALL_HEALTHY=false
+            fi
+          done
+          
+          if [ "$ALL_HEALTHY" = true ]; then
+            echo "✅ PASS: All backend services are healthy"
+            TESTS_PASSED=$((TESTS_PASSED + 1))
+          else
+            echo "❌ FAIL: Some backend services are unhealthy"
+            TESTS_FAILED=$((TESTS_FAILED + 1))
+          fi
+          
+          # Test 5: Database connectivity
+          echo ""
+          echo "Test 5: Checking database connectivity..."
+          CUSTOMER_POD=$(kubectl get pods -l app=customer-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+          
+          if [ -n "$CUSTOMER_POD" ]; then
+            DB_HEALTH=$(kubectl exec $CUSTOMER_POD -- wget -qO- http://localhost:8081/actuator/health/db 2>/dev/null || echo "")
+            
+            if echo "$DB_HEALTH" | grep -q '"status":"UP"'; then
+              echo "✅ PASS: Database connectivity verified"
+              TESTS_PASSED=$((TESTS_PASSED + 1))
+            else
+              echo "❌ FAIL: Database connectivity failed"
+              TESTS_FAILED=$((TESTS_FAILED + 1))
+            fi
+          else
+            echo "⚠️  SKIP: No customer-service pod found"
+          fi
+          
+          # Summary
+          echo ""
+          echo "=========================================="
+          echo "📊 TEST SUMMARY"
+          echo "=========================================="
+          echo "✅ Tests Passed: $TESTS_PASSED"
+          echo "❌ Tests Failed: $TESTS_FAILED"
+          echo "=========================================="
+          
+          if [ "$TESTS_FAILED" -eq "0" ]; then
+            echo "tests_passed=true" >> $GITHUB_OUTPUT
+            echo ""
+            echo "🎉 ALL TESTS PASSED - Deployment is healthy!"
+            echo "Frontend URL: http://$FRONTEND_IP"
+            exit 0
+          else
+            echo "tests_passed=false" >> $GITHUB_OUTPUT
+            echo ""
+            echo "⚠️  TESTS FAILED - Deployment has issues!"
+            exit 1
+          fi
+
+  # ============================================
+  # JOB 5: Handle Failed Tests (Stop Infrastructure)
+  # ============================================
+  handle-test-failure:
+    name: Handle Test Failure (Stop Infrastructure)
+    needs: [test-deployment-dev]
+    if: always() && needs.test-deployment-dev.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Resource Names
+        id: resources
+        run: |
+          cd infrastructure/environments/dev
+          
+          LOCATION=$(grep '^location' terraform.tfvars | awk -F'"' '{print $2}')
+          case "$LOCATION" in
+            "eastus") LOCATION_CODE="eus" ;;
+            "eastus2") LOCATION_CODE="eus2" ;;
+            *) LOCATION_CODE="eus2" ;;
+          esac
+          
+          echo "RG_NAME=rg-account-opening-dev-${LOCATION_CODE}" >> $GITHUB_OUTPUT
+          echo "AKS_NAME=aks-account-opening-dev-${LOCATION_CODE}" >> $GITHUB_OUTPUT
+          echo "POSTGRES_NAME=psql-account-opening-dev-${LOCATION_CODE}" >> $GITHUB_OUTPUT
+
+      - name: Stop Infrastructure to Save Costs
+        continue-on-error: true
+        run: |
+          echo "⚠️  Tests failed - stopping infrastructure to save costs..."
+          
+          echo "🛑 Stopping AKS cluster..."
+          az aks stop \
+            --name ${{ steps.resources.outputs.AKS_NAME }} \
+            --resource-group ${{ steps.resources.outputs.RG_NAME }} || true
+          
+          echo "🛑 Stopping PostgreSQL server..."
+          az postgres flexible-server stop \
+            --name ${{ steps.resources.outputs.POSTGRES_NAME }} \
+            --resource-group ${{ steps.resources.outputs.RG_NAME }} || true
+          
+          echo ""
+          echo "=========================================="
+          echo "⚠️  DEPLOYMENT TESTS FAILED"
+          echo "=========================================="
+          echo ""
+          echo "Infrastructure has been stopped to save costs."
+          echo "Please review the test failures, fix the issues,"
+          echo "and redeploy."
+          echo ""
+          echo "To redeploy:"
+          echo "1. Fix the issues identified in the tests"
+          echo "2. Trigger the workflow again with force_run=true"
+          echo ""
+
+  # ============================================
+  # JOB 6: Infrastructure Decision Gate - Keep or Stop
   # ============================================
   infrastructure-decision:
     name: Keep Running or Stop Infrastructure?
-    needs: [deploy-to-aks-dev]
-    if: always() && needs.deploy-to-aks-dev.result == 'success'
+    needs: [test-deployment-dev]
+    if: always() && needs.test-deployment-dev.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: infrastructure-decision
@@ -893,6 +1146,9 @@ jobs:
           echo "=========================================="
           echo ""
           echo "✅ Development environment deployed successfully!"
+          echo "✅ All automated tests passed!"
+          echo ""
+          echo "Frontend URL: ${{ needs.test-deployment-dev.outputs.frontend_url }}"
           echo ""
           echo "🔍 Current resources running:"
           echo "   - AKS Cluster (1 node, Standard_B2s)"
