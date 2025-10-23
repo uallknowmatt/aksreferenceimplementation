@@ -13,7 +13,7 @@ resource "azurerm_postgresql_flexible_server" "db" {
   administrator_password = var.db_admin_password
   sku_name               = var.db_sku_name
   storage_mb             = var.db_storage_mb
-  version                = "14"
+  version                = "15"
   zone                   = "2"  # Explicitly set to match existing server in East US 2
   tags                   = local.common_tags
   

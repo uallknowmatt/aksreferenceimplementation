@@ -17,7 +17,7 @@ This document provides detailed technical information about the application arch
 
 - **Framework:** React with functional components and hooks
 - **State Management:** React Context API
-- **Routing:** React Router v6
+- **Routing:** React Router v7
 - **HTTP Client:** Axios with interceptors
 - **UI Components:** Custom components with responsive design
 - **Build Tool:** Create React App / Vite
