@@ -19,7 +19,6 @@ permissions:
 jobs:
   stop-infrastructure:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
     
     steps:
       - name: Checkout code
