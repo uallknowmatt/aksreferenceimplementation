@@ -56,11 +56,15 @@ locals {
   acr_nsg_name = "nsg-${var.environment}-acr-subnet"
 
   # Subnets
-  aks_subnet_name = "snet-${var.environment}-aks"
-  acr_subnet_name = "snet-${var.environment}-acr"
+  aks_subnet_name      = "snet-${var.environment}-aks"
+  acr_subnet_name      = "snet-${var.environment}-acr"
+  postgres_subnet_name = "snet-${var.environment}-postgres"
 
   # Private Endpoints
   acr_pe_name = "pe-${var.environment}-acr"
+
+  # Private DNS Zone for PostgreSQL
+  postgres_private_dns_zone_name = "privatelink.postgres.database.azure.com"
 
   # Databases (will be created by Liquibase, but defined here for reference)
   database_names = [

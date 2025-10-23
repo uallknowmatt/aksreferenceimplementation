@@ -1,8 +1,9 @@
 # ============================================
 # Azure Database for PostgreSQL Flexible Server
 # ============================================
-# Depends on: Resource Group
+# Depends on: Resource Group, PostgreSQL Subnet, Private DNS Zone
 # Used by: All microservices for data storage
+# Network: Private VNet integration (no public access)
 
 resource "azurerm_postgresql_flexible_server" "db" {
   name                   = local.postgres_name
@@ -16,7 +17,15 @@ resource "azurerm_postgresql_flexible_server" "db" {
   zone                   = "2"  # Explicitly set to match existing server in East US 2
   tags                   = local.common_tags
   
-  depends_on = [azurerm_resource_group.rg]
+  # VNet Integration (Private Access)
+  delegated_subnet_id           = azurerm_subnet.postgres_subnet.id
+  private_dns_zone_id           = azurerm_private_dns_zone.postgres.id
+  
+  depends_on = [
+    azurerm_resource_group.rg,
+    azurerm_subnet.postgres_subnet,
+    azurerm_private_dns_zone_virtual_network_link.postgres_vnet_link
+  ]
   
   # Ignore changes to zone to prevent errors when updating existing servers
   lifecycle {
@@ -34,25 +43,11 @@ resource "azurerm_postgresql_flexible_server" "db" {
 }
 
 # ============================================
-# PostgreSQL Firewall Rules
-# ============================================
-# Depends on: PostgreSQL Server
-# Allows AKS subnet to access PostgreSQL
-
-resource "azurerm_postgresql_flexible_server_firewall_rule" "aks_subnet" {
-  name             = "allow-aks-subnet"
-  server_id        = azurerm_postgresql_flexible_server.db.id
-  start_ip_address = cidrhost(var.aks_subnet_address_prefix[0], 0)  # First IP in subnet (10.0.1.0)
-  end_ip_address   = cidrhost(var.aks_subnet_address_prefix[0], 255) # Last usable IP (10.0.1.255)
-
-  depends_on = [azurerm_postgresql_flexible_server.db]
-}
-
-# ============================================
 # PostgreSQL Databases
 # ============================================
 # Depends on: PostgreSQL Server
 # One database per microservice
+# Note: No firewall rules needed - using VNet integration for private access
 
 resource "azurerm_postgresql_flexible_server_database" "databases" {
   for_each = toset(local.database_names)

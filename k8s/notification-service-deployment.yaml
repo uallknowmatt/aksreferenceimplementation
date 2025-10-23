@@ -37,3 +37,4 @@ spec:
             secretKeyRef:
               name: notification-service-secret
               key: postgres-password
+# Trivial change for workflow trigger

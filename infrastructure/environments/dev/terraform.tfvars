@@ -44,8 +44,9 @@ db_storage_mb     = 32768                     # 32 GB minimum for dev
 # ============================================
 # Networking Configuration
 # ============================================
-vnet_address_space        = ["10.0.0.0/16"]
-aks_subnet_address_prefix = ["10.0.1.0/24"]
-acr_subnet_address_prefix = ["10.0.2.0/24"]
-aks_service_cidr          = "10.1.0.0/16"  # Must not overlap with VNet
-aks_dns_service_ip        = "10.1.0.10"    # Must be within service_cidr
+vnet_address_space            = ["10.0.0.0/16"]
+aks_subnet_address_prefix     = ["10.0.1.0/24"]
+acr_subnet_address_prefix     = ["10.0.2.0/24"]
+postgres_subnet_address_prefix = ["10.0.3.0/24"]  # PostgreSQL private subnet
+aks_service_cidr              = "10.1.0.0/16"  # Must not overlap with VNet
+aks_dns_service_ip            = "10.1.0.10"    # Must be within service_cidr

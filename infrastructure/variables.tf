@@ -121,6 +121,12 @@ variable "acr_subnet_address_prefix" {
   default     = ["10.0.2.0/24"]
 }
 
+variable "postgres_subnet_address_prefix" {
+  description = "Address prefix for PostgreSQL subnet (VNet integrated)"
+  type        = list(string)
+  default     = ["10.0.3.0/24"]
+}
+
 variable "aks_service_cidr" {
   description = "CIDR for Kubernetes services (must not overlap with VNet)"
   type        = string
