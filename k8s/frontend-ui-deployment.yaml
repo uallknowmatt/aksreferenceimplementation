@@ -17,6 +17,9 @@ spec:
         image: <ACR_LOGIN_SERVER>/frontend-ui:<TAG>
         ports:
         - containerPort: 80
+        envFrom:
+        - configMapRef:
+            name: frontend-ui-config
         resources:
           requests:
             memory: "128Mi"

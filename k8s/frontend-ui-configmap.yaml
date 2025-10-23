@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-ui-config
+  labels:
+    app: frontend-ui
+  namespace: default
+
+data:
+  # Backend service URLs - use Kubernetes service names for internal cluster communication
+  REACT_APP_CUSTOMER_SERVICE_URL: "http://customer-service"
+  REACT_APP_DOCUMENT_SERVICE_URL: "http://document-service"
+  REACT_APP_ACCOUNT_SERVICE_URL: "http://account-service"
+  REACT_APP_NOTIFICATION_SERVICE_URL: "http://notification-service"
