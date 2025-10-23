@@ -14,19 +14,20 @@ resource "azurerm_postgresql_flexible_server" "db" {
   sku_name               = var.db_sku_name
   storage_mb             = var.db_storage_mb
   version                = "15"
-  zone                   = "2"  # Explicitly set to match existing server in East US 2
+  zone                   = "2" # Explicitly set to match existing server in East US 2
   tags                   = local.common_tags
-  
-  # VNet Integration (Private Access)
+
+  # VNet Integration (Private Access Only - No Public Access)
   delegated_subnet_id           = azurerm_subnet.postgres_subnet.id
   private_dns_zone_id           = azurerm_private_dns_zone.postgres.id
-  
+  public_network_access_enabled = false # Required when using VNet integration
+
   depends_on = [
     azurerm_resource_group.rg,
     azurerm_subnet.postgres_subnet,
     azurerm_private_dns_zone_virtual_network_link.postgres_vnet_link
   ]
-  
+
   # Ignore changes to zone to prevent errors when updating existing servers
   lifecycle {
     ignore_changes = [
@@ -34,7 +35,7 @@ resource "azurerm_postgresql_flexible_server" "db" {
       high_availability
     ]
   }
-  
+
   # Simplified for dev - remove high availability and AD auth
   # Uncomment for production:
   # high_availability {
@@ -51,7 +52,7 @@ resource "azurerm_postgresql_flexible_server" "db" {
 
 resource "azurerm_postgresql_flexible_server_database" "databases" {
   for_each = toset(local.database_names)
-  
+
   name      = each.value
   server_id = azurerm_postgresql_flexible_server.db.id
   charset   = "UTF8"
