@@ -1,103 +1,280 @@
 # Bank Account Opening System
 
-A complete microservices-based bank account opening system built with Spring Boot and React, deployed on Azure Kubernetes Service (AKS).
+> **Enterprise-grade microservices application for digital bank account opening, deployed on Azure Kubernetes Service (AKS) with full automation, self-healing capabilities, and secure private networking.**
+
+[![Azure](https://img.shields.io/badge/Azure-AKS-0078D4?logo=microsoft-azure)](https://azure.microsoft.com/en-us/services/kubernetes-service/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F?logo=spring-boot)](https://spring.io/projects/spring-boot)
+[![React](https://img.shields.io/badge/React-19.x-61DAFB?logo=react)](https://reactjs.org/)
+[![Terraform](https://img.shields.io/badge/Terraform-1.6+-844FBA?logo=terraform)](https://www.terraform.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql)](https://www.postgresql.org/)
+
+---
+
+## 📋 Table of Contents
+
+- [Overview](#overview)
+- [Architecture](#architecture)
+  - [Business Functional Diagram](#business-functional-diagram)
+  - [Azure Architecture Diagram](#azure-architecture-diagram)
+  - [Component Architecture](#component-architecture)
+- [Technology Deep Dive](#technology-deep-dive)
+  - [Application Layer](#application-layer)
+  - [Infrastructure Layer](#infrastructure-layer)
+  - [Network Architecture](#network-architecture)
+  - [Database Layer](#database-layer)
+  - [Load Balancer](#load-balancer)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Local Development](#local-development)
+  - [Local Testing](#local-testing)
+- [Azure Deployment](#azure-deployment)
+  - [Clean Deployment](#clean-deployment)
+  - [Starting Infrastructure](#starting-infrastructure)
+  - [Stopping Infrastructure](#stopping-infrastructure)
+  - [Destroying Infrastructure](#destroying-infrastructure)
+- [Application Access](#application-access)
+  - [Get Application URL](#get-application-url)
+  - [Business User Testing](#business-user-testing)
+- [Troubleshooting](#troubleshooting)
+  - [Pods Not Running](#pods-not-running)
+  - [Database Connectivity Issues](#database-connectivity-issues)
+  - [LoadBalancer Issues](#loadbalancer-issues)
+- [Documentation](#documentation)
+- [Cost Management](#cost-management)
+- [Contributing](#contributing)
+
+---
+
+## Overview
+
+The **Bank Account Opening System** is a production-ready, cloud-native application that demonstrates enterprise-level microservices architecture deployed on Azure. It provides a complete digital workflow for opening bank accounts, including customer onboarding, document verification, account creation, and notifications.
+
+### Key Features
+
+✅ **Microservices Architecture** - 4 independent, scalable services  
+✅ **Cloud-Native** - Containerized with Docker, orchestrated with Kubernetes  
+✅ **Secure Private Networking** - PostgreSQL with VNet integration (no public access)  
+✅ **Automated Testing** - 6 comprehensive health checks after every deployment  
+✅ **Self-Healing** - Automatically stops infrastructure on test failures (saves ~$52/month)  
+✅ **Infrastructure as Code** - Full Terraform automation  
+✅ **CI/CD** - GitHub Actions with OIDC authentication  
+✅ **Cost Optimized** - ~$1/month when stopped, ~$53/month when running  
+✅ **Production Ready** - Automated validation before customer delivery
+
+### Business Value
+
+- **Faster Time to Market** - Deploy complete infrastructure in 15-20 minutes
+- **Cost Efficiency** - Automated cost management with infrastructure decision gates
+- **High Availability** - Kubernetes auto-scaling and self-healing
+- **Security First** - Private networking, secret management, Azure RBAC
+- **Developer Productivity** - One-command deployments, automated testing
+- **Compliance Ready** - Audit logs, security policies, encrypted data
+
+---
 
 ## Architecture
 
-The system consists of four microservices:
-
-- **Customer Service** - Customer information and KYC processes
-- **Document Service** - Document upload and verification
-- **Account Service** - Account creation and management
-- **Notification Service** - Notifications and communications
-
-## Technology Stack
-
-**Backend:**
-- Java 17
-- Spring Boot 3.x
-- Spring Cloud (Config, Gateway, Eureka)
-- PostgreSQL
-- Maven
-
-**Frontend:**
-- React 18
-- TypeScript
-- Axios
-- React Router
-
-**Infrastructure:**
-- Azure Kubernetes Service (AKS)
-- Azure Container Registry (ACR)
-- Azure Database for PostgreSQL
-- Terraform for IaC
-- GitHub Actions for CI/CD
-
-## Project Structure
+### Business Functional Diagram
 
 ```
-account-opening-system/
-├── customer-service/        # Customer management
-├── document-service/        # Document handling
-├── account-service/         # Account management
-├── notification-service/    # Notifications
-├── frontend/
-│   └── account-opening-ui/  # React frontend
-├── infrastructure/          # Terraform configurations
-├── k8s/                     # Kubernetes manifests
-└── .github/workflows/       # CI/CD pipelines
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         BANK CUSTOMER                                    │
+│                     (Web Browser / Mobile)                               │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │
+                                 │ HTTPS
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     FRONTEND UI (React)                                  │
+│  • Customer Registration Form                                            │
+│  • Document Upload Interface                                             │
+│  • Account Type Selection                                                │
+│  • Application Status Tracking                                           │
+└────────────────────────────────┬────────────────────────────────────────┘
+                                 │
+                                 │ REST API
+                                 ▼
+         ┌───────────────────────┴────────────────────────┐
+         │                                                 │
+         ▼                                                 ▼
+┌──────────────────────┐                      ┌──────────────────────┐
+│  CUSTOMER SERVICE    │◄────────────────────►│  ACCOUNT SERVICE     │
+│                      │                      │                      │
+│  • KYC Verification  │                      │  • Account Creation  │
+│  • Customer Profile  │                      │  • Account Types     │
+│  • Compliance Checks │                      │  • Account Status    │
+└──────────┬───────────┘                      └──────────┬───────────┘
+           │                                             │
+           │                                             │
+           ▼                                             ▼
+┌──────────────────────┐                      ┌──────────────────────┐
+│  DOCUMENT SERVICE    │                      │ NOTIFICATION SERVICE │
+│                      │                      │                      │
+│  • ID Upload         │                      │  • Email Alerts      │
+│  • Proof of Address  │                      │  • SMS Notifications │
+│  • Document Verify   │                      │  • Status Updates    │
+└──────────┬───────────┘                      └──────────┬───────────┘
+           │                                             │
+           │                                             │
+           └──────────────────┬──────────────────────────┘
+                              │
+                              ▼
+                 ┌────────────────────────┐
+                 │   POSTGRESQL DATABASE  │
+                 │  • Customer Data       │
+                 │  • Documents Metadata  │
+                 │  • Account Records     │
+                 │  • Audit Logs          │
+                 └────────────────────────┘
+
+BUSINESS WORKFLOW:
+1. Customer fills registration form → Customer Service (KYC check)
+2. Customer uploads documents → Document Service (verification)
+3. System creates account → Account Service (account setup)
+4. Customer receives confirmation → Notification Service (email/SMS)
 ```
 
-## Documentation
+### Azure Architecture Diagram
 
-### Getting Started
-- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Complete deployment guide for dev and production
-- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - How to test your deployed application in Azure
-- **[infrastructure/README.md](infrastructure/README.md)** - Infrastructure setup and configuration
-- **[infrastructure/environments/README.md](infrastructure/environments/README.md)** - Environment-specific configurations
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              AZURE SUBSCRIPTION                                      │
+│                                                                                      │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐ │
+│  │                      RESOURCE GROUP: rg-account-opening-dev-eus2              │ │
+│  │                                                                                │ │
+│  │  ┌──────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │               VIRTUAL NETWORK (VNet): 10.0.0.0/16                        │ │ │
+│  │  │                                                                          │ │ │
+│  │  │  ┌─────────────────────────────────────────────────────────────────┐    │ │ │
+│  │  │  │  AKS SUBNET: 10.0.1.0/24                                        │    │ │ │
+│  │  │  │                                                                 │    │ │ │
+│  │  │  │   ┌──────────────────────────────────────────────────────┐     │    │ │ │
+│  │  │  │   │  AZURE KUBERNETES SERVICE (AKS)                     │     │    │ │ │
+│  │  │  │   │  Cluster: aks-account-opening-dev-eus2              │     │    │ │ │
+│  │  │  │   │  Node Pool: Standard_B2s (1 node)                   │     │    │ │ │
+│  │  │  │   │                                                      │     │    │ │ │
+│  │  │  │   │  ┌────────────────────────────────────────────┐     │     │    │ │ │
+│  │  │  │   │  │         POD: frontend-ui                   │     │     │    │ │ │
+│  │  │  │   │  │         • React Application                │     │     │    │ │ │
+│  │  │  │   │  │         • Nginx Server                     │     │     │    │ │ │
+│  │  │  │   │  │         • Port 80                          │     │     │    │ │ │
+│  │  │  │   │  └────────────────────────────────────────────┘     │     │    │ │ │
+│  │  │  │   │                                                      │     │    │ │ │
+│  │  │  │   │  ┌────────────────────────────────────────────┐     │     │    │ │ │
+│  │  │  │   │  │         POD: customer-service              │     │     │    │ │ │
+│  │  │  │   │  │         • Spring Boot App                  │     │     │    │ │ │
+│  │  │  │   │  │         • Port 8081                        │     │     │    │ │ │
+│  │  │  │   │  │         • Health: /actuator/health         │     │     │    │ │ │
+│  │  │  │   │  └────────────────────────────────────────────┘     │     │    │ │ │
+│  │  │  │   │                                                      │     │    │ │ │
+│  │  │  │   │  ┌────────────────────────────────────────────┐     │     │    │ │ │
+│  │  │  │   │  │         POD: document-service              │     │     │    │ │ │
+│  │  │  │   │  └────────────────────────────────────────────┘     │     │    │ │ │
+│  │  │  │   │                                                      │     │    │ │ │
+│  │  │  │   │  ┌────────────────────────────────────────────┐     │     │    │ │ │
+│  │  │  │   │  │         POD: account-service               │     │     │    │ │ │
+│  │  │  │   │  └────────────────────────────────────────────┘     │     │    │ │ │
+│  │  │  │   │                                                      │     │    │ │ │
+│  │  │  │   │  ┌────────────────────────────────────────────┐     │     │    │ │ │
+│  │  │  │   │  │         POD: notification-service          │     │     │    │ │ │
+│  │  │  │   │  └────────────────────────────────────────────┘     │     │    │ │ │
+│  │  │  │   │                                                      │     │    │ │ │
+│  │  │  │   │  ┌────────────────────────────────────────────┐     │     │    │ │ │
+│  │  │  │   │  │   KUBERNETES SERVICE: frontend-ui          │     │     │    │ │ │
+│  │  │  │   │  │   Type: LoadBalancer                       │     │     │    │ │ │
+│  │  │  │   │  │   External IP: 68.220.25.83 (example)      │     │     │    │ │ │
+│  │  │  │   │  └────────────────────────────────────────────┘     │     │    │ │ │
+│  │  │  │   └──────────────────────────────────────────────────────┘     │    │ │ │
+│  │  │  └─────────────────────────────────────────────────────────────────┘    │ │ │
+│  │  │                                                                          │ │ │
+│  │  │  ┌─────────────────────────────────────────────────────────────────┐    │ │ │
+│  │  │  │  ACR SUBNET: 10.0.2.0/24                                        │    │ │ │
+│  │  │  │                                                                 │    │ │ │
+│  │  │  │   [Azure Container Registry - Private Endpoint]                │    │ │ │
+│  │  │  └─────────────────────────────────────────────────────────────────┘    │ │ │
+│  │  │                                                                          │ │ │
+│  │  │  ┌─────────────────────────────────────────────────────────────────┐    │ │ │
+│  │  │  │  POSTGRESQL SUBNET: 10.0.3.0/24                                 │    │ │ │
+│  │  │  │  Delegation: Microsoft.DBforPostgreSQL/flexibleServers          │    │ │ │
+│  │  │  │                                                                 │    │ │ │
+│  │  │  │   ┌──────────────────────────────────────────────────────┐     │    │ │ │
+│  │  │  │   │  POSTGRESQL FLEXIBLE SERVER                         │     │    │ │ │
+│  │  │  │   │  Name: psql-account-opening-dev-eus2                │     │    │ │ │
+│  │  │  │   │  SKU: Burstable B1ms                                │     │    │ │ │
+│  │  │  │   │  Storage: 32 GB                                     │     │    │ │ │
+│  │  │  │   │  Private IP: 10.0.3.x (VNet integrated)             │     │    │ │ │
+│  │  │  │   │  NO PUBLIC ACCESS ✅                                │     │    │ │ │
+│  │  │  │   │                                                      │     │    │ │ │
+│  │  │  │   │  Databases:                                          │     │    │ │ │
+│  │  │  │   │  • customerdb                                        │     │    │ │ │
+│  │  │  │   │  • documentdb                                        │     │    │ │ │
+│  │  │  │   │  • accountdb                                         │     │    │ │ │
+│  │  │  │   │  • notificationdb                                    │     │    │ │ │
+│  │  │  │   └──────────────────────────────────────────────────────┘     │    │ │ │
+│  │  │  └─────────────────────────────────────────────────────────────────┘    │ │ │
+│  │  │                                                                          │ │ │
+│  │  │  ┌──────────────────────────────────────────────────────────────┐       │ │ │
+│  │  │  │  PRIVATE DNS ZONE                                           │       │ │ │
+│  │  │  │  Name: privatelink.postgres.database.azure.com              │       │ │ │
+│  │  │  │  Linked to VNet ✅                                          │       │ │ │
+│  │  │  └──────────────────────────────────────────────────────────────┘       │ │ │
+│  │  └──────────────────────────────────────────────────────────────────────────┘ │ │
+│  │                                                                                │ │
+│  │  ┌──────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │  AZURE CONTAINER REGISTRY (ACR)                                          │ │ │
+│  │  │  Name: acr<uniqueid>accountopeningdev                                    │ │ │
+│  │  │  SKU: Basic                                                              │ │ │
+│  │  │  Docker Images:                                                          │ │ │
+│  │  │  • customer-service:latest                                               │ │ │
+│  │  │  • document-service:latest                                               │ │ │
+│  │  │  • account-service:latest                                                │ │ │
+│  │  │  • notification-service:latest                                           │ │ │
+│  │  │  • frontend-ui:latest                                                    │ │ │
+│  │  └──────────────────────────────────────────────────────────────────────────┘ │ │
+│  │                                                                                │ │
+│  │  ┌──────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │  LOG ANALYTICS WORKSPACE                                                 │ │ │
+│  │  │  • Container Insights                                                    │ │ │
+│  │  │  • Application Logs                                                      │ │ │
+│  │  │  • Performance Metrics                                                   │ │ │
+│  │  └──────────────────────────────────────────────────────────────────────────┘ │ │
+│  └────────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                      │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐ │
+│  │             TERRAFORM STATE RESOURCE GROUP: terraform-state-rg                │ │
+│  │                                                                                │ │
+│  │  ┌──────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │  STORAGE ACCOUNT: tfstateaccountopening                                  │ │ │
+│  │  │  Container: tfstate                                                      │ │ │
+│  │  │  Blob: dev.terraform.tfstate                                             │ │ │
+│  │  └──────────────────────────────────────────────────────────────────────────┘ │ │
+│  └────────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                      │
+│  ┌────────────────────────────────────────────────────────────────────────────────┐ │
+│  │                         GITHUB ACTIONS (CI/CD)                                │ │ │
+│  │  Workflows:                                                                   │ │ │
+│  │  • Deploy to AKS (Dev) - Full deployment with automated testing              │ │ │
+│  │  • Start Infrastructure - Start stopped AKS and PostgreSQL                   │ │ │
+│  │  • Stop Infrastructure - Stop running infrastructure                         │ │ │
+│  │  • Destroy Infrastructure - Delete all resources                             │ │ │
+│  │                                                                                │ │ │
+│  │  Authentication: OIDC (No secrets stored)                                     │ │ │
+│  └────────────────────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────────────────────┘
 
-### Frontend
-- **[frontend/account-opening-ui/README.md](frontend/account-opening-ui/README.md)** - Frontend documentation
+INTERNET
+   ↓
+[Azure Load Balancer]
+   ↓
+68.220.25.83 (Public IP)
+   ↓
+[Frontend UI Service]
+   ↓
+[Frontend UI Pod] → [Backend Services] → [PostgreSQL via Private Network]
+```
 
-### Historical Documentation
-- **[pasthistory/](pasthistory/)** - Historical docs and progress tracking (for reference only)
-
-## Quick Start
-
-### Prerequisites
-- Java 17+
-- Maven 3.8+
-- Node.js 18+
-- Docker (optional)
-- Azure CLI
-- Terraform 1.6+
-- kubectl
-
-### Local Development
-
-1. **Build all services:**
-   ```bash
-   mvn clean install
-   ```
-
-2. **Start backend services:**
-   ```powershell
-   .\start-all-services.ps1
-   ```
-
-3. **Start frontend:**
-   ```bash
-   cd frontend\account-opening-ui
-   npm install
-   npm start
-   ```
-
-4. **Check service health:**
-   ```powershell
-   .\check-services.ps1
-   ```
-
-### Services
+### Component Architecture
 
 | Service | Port | Health Check |
 |---------|------|--------------|
