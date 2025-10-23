@@ -826,10 +826,10 @@ jobs:
           echo "✅ Dev deployment complete!"
 
   # ============================================
-  # JOB 4: Infrastructure Decision Gate
+  # JOB 4: Infrastructure Decision Gate - Keep or Stop
   # ============================================
   infrastructure-decision:
-    name: Keep or Destroy Infrastructure?
+    name: Keep Running or Stop Infrastructure?
     needs: [deploy-to-aks-dev]
     if: always() && needs.deploy-to-aks-dev.result == 'success'
     runs-on: ubuntu-latest
@@ -848,36 +848,122 @@ jobs:
           echo "✅ Development environment deployed successfully!"
           echo ""
           echo "🔍 Current resources running:"
-          echo "   - AKS Cluster (2 nodes, Standard_DS2_v2)"
+          echo "   - AKS Cluster (1 node, Standard_B2s)"
           echo "   - PostgreSQL Flexible Server (Burstable B1ms)"
           echo "   - Azure Container Registry (Basic tier)"
           echo "   - Log Analytics Workspace"
           echo "   - Virtual Network & NSG"
           echo ""
-          echo "💵 Estimated cost: ~$150-200/month if left running"
+          echo "💵 Estimated cost: ~$49/month if left running 24/7"
+          echo "💵 Or ~$1.46/month if only running 30min/day"
           echo ""
           echo "⚠️  CHOOSE YOUR ACTION:"
           echo ""
           echo "Option 1: APPROVE THIS STEP"
-          echo "  → Continue to production deployment"
-          echo "  → Infrastructure remains running"
-          echo "  → Costs will continue to accrue"
+          echo "  → Infrastructure will STOP (saves money!)"
+          echo "  → Continue to production deployment optional"
+          echo "  → Cost reduces to ~$1/month (storage only)"
+          echo "  → Use 'Start Infrastructure' workflow when needed"
           echo ""
-          echo "Option 2: CANCEL THIS WORKFLOW"
-          echo "  → Trigger the destroy workflow manually"
-          echo "  → Run: gh workflow run 'Destroy Infrastructure'"
-          echo "  → All resources will be deleted"
-          echo "  → Costs reduced to ~$0.02/month (state storage only)"
+          echo "Option 2: REJECT/CANCEL THIS WORKFLOW"
+          echo "  → Infrastructure stays RUNNING"
+          echo "  → Costs continue at ~$49/month"
+          echo "  → You can stop manually with 'Stop Infrastructure' workflow"
           echo ""
-          echo "action=continue" >> $GITHUB_OUTPUT
+          echo "💡 Tip: APPROVE to save money, REJECT to keep running"
+          echo ""
+          echo "action=stop" >> $GITHUB_OUTPUT
+  
+  # ============================================
+  # JOB 5: Stop Infrastructure After Deployment
+  # ============================================
+  stop-infrastructure-dev:
+    name: Stop Dev Infrastructure (Save Costs)
+    needs: [infrastructure-decision]
+    if: needs.infrastructure-decision.outputs.action == 'stop'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login with OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Resource Names
+        id: resources
+        run: |
+          cd infrastructure/environments/dev
+          
+          LOCATION=$(grep '^location' terraform.tfvars | awk -F'"' '{print $2}')
+          case "$LOCATION" in
+            "eastus") LOCATION_CODE="eus" ;;
+            "eastus2") LOCATION_CODE="eus2" ;;
+            "westus") LOCATION_CODE="wus" ;;
+            "westus2") LOCATION_CODE="wus2" ;;
+            "centralus") LOCATION_CODE="cus" ;;
+            *) LOCATION_CODE="eus2" ;;
+          esac
+          
+          RG_NAME="rg-account-opening-dev-${LOCATION_CODE}"
+          AKS_NAME="aks-account-opening-dev-${LOCATION_CODE}"
+          POSTGRES_NAME="psql-account-opening-dev-${LOCATION_CODE}"
+          
+          echo "RG_NAME=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "AKS_NAME=$AKS_NAME" >> $GITHUB_OUTPUT
+          echo "POSTGRES_NAME=$POSTGRES_NAME" >> $GITHUB_OUTPUT
+
+      - name: Stop AKS Cluster
+        continue-on-error: true
+        run: |
+          echo "🛑 Stopping AKS cluster to save costs..."
+          az aks stop \
+            --name ${{ steps.resources.outputs.AKS_NAME }} \
+            --resource-group ${{ steps.resources.outputs.RG_NAME }}
+          echo "✅ AKS cluster stopped!"
+
+      - name: Stop PostgreSQL Server
+        continue-on-error: true
+        run: |
+          echo "🛑 Stopping PostgreSQL server to save costs..."
+          az postgres flexible-server stop \
+            --name ${{ steps.resources.outputs.POSTGRES_NAME }} \
+            --resource-group ${{ steps.resources.outputs.RG_NAME }}
+          echo "✅ PostgreSQL server stopped!"
+
+      - name: Cost Savings Summary
+        run: |
+          echo "=========================================="
+          echo "💰 COST SAVINGS ACHIEVED"
+          echo "=========================================="
+          echo ""
+          echo "✅ AKS Cluster: STOPPED"
+          echo "✅ PostgreSQL Server: STOPPED"
+          echo ""
+          echo "💵 Monthly cost reduced from ~$49 to ~$1"
+          echo "💵 Daily savings: ~$1.60"
+          echo "💵 Annual savings: ~$576"
+          echo ""
+          echo "📦 All data is preserved and safe!"
+          echo ""
+          echo "🚀 To restart infrastructure:"
+          echo "   Run: 'Start Infrastructure' workflow"
+          echo "   Or run: ./start-infra.ps1"
+          echo ""
 
   # ============================================
-  # JOB 5: UAT Test Complete (Manual Approval Gate)
+  # JOB 6: UAT Test Complete (Manual Approval Gate)
   # ============================================
   uat-test-complete:
     name: UAT Testing Complete - Approve for Production
-    needs: [infrastructure-decision]
-    if: needs.infrastructure-decision.outputs.action == 'continue'
+    needs: [infrastructure-decision, stop-infrastructure-dev]
+    if: |
+      always() &&
+      needs.infrastructure-decision.result == 'success' &&
+      (needs.stop-infrastructure-dev.result == 'success' || needs.stop-infrastructure-dev.result == 'skipped')
     runs-on: ubuntu-latest
     environment:
       name: production-approval
@@ -889,6 +975,13 @@ jobs:
           echo "=========================================="
           echo ""
           echo "✅ Development environment deployed successfully"
+          
+          if [ "${{ needs.stop-infrastructure-dev.result }}" == "success" ]; then
+            echo "✅ Dev infrastructure stopped to save costs"
+          else
+            echo "ℹ️  Dev infrastructure still running"
+          fi
+          
           echo "✅ Ready for production deployment"
           echo ""
           echo "⚠️  Production deployment will begin after manual approval"
