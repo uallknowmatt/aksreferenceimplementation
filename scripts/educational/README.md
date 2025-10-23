@@ -1,6 +1,6 @@
 # Educational Scripts
 
-This folder contains PowerShell scripts for **educational purposes and local development**. These scripts are **NOT required** for Azure deployment, as the GitHub Actions workflows handle everything automatically.
+This folder contains Bash scripts for **educational purposes and local development**. These scripts are **NOT required** for Azure deployment, as the GitHub Actions workflows handle everything automatically.
 
 ---
 
@@ -32,7 +32,7 @@ These scripts help you:
 
 ### Initial Setup Scripts
 
-#### `bootstrap.ps1`
+#### `bootstrap.sh`
 **Purpose:** One-time setup for GitHub OIDC authentication
 
 **When to use:**
@@ -41,31 +41,31 @@ These scripts help you:
 - Creating service principal for deployments
 
 **How to use:**
-```powershell
-.\bootstrap.ps1
+```bash
+.\bootstrap.sh
 ```
 
 **Note:** You only run this **ONCE** during initial setup. After that, GitHub Actions handles everything.
 
 ---
 
-#### `setup-oidc-cli.ps1`
-**Purpose:** PowerShell version of OIDC setup (Linux/Mac users use `setup-oidc-cli.sh` at root)
+#### `setup-oidc-cli.sh`
+**Purpose:** Bash version of OIDC setup (Linux/Mac users use `setup-oidc-cli.sh` at root)
 
 **When to use:**
 - Windows users setting up OIDC authentication
 - Configuring federated credentials for GitHub Actions
 
 **How to use:**
-```powershell
-.\setup-oidc-cli.ps1
+```bash
+.\setup-oidc-cli.sh
 ```
 
 **Equivalent:** See `setup-oidc-cli.sh` in root directory for Linux/Mac version
 
 ---
 
-#### `verify-oidc-setup.ps1`
+#### `verify-oidc-setup.sh`
 **Purpose:** Verify OIDC authentication is configured correctly
 
 **When to use:**
@@ -74,15 +74,15 @@ These scripts help you:
 - Confirming federated credentials are working
 
 **How to use:**
-```powershell
-.\verify-oidc-setup.ps1
+```bash
+.\verify-oidc-setup.sh
 ```
 
 ---
 
 ### Local Development Scripts
 
-#### `setup-databases.ps1`
+#### `setup-databases.sh`
 **Purpose:** Set up local PostgreSQL databases for development
 
 **When to use:**
@@ -91,8 +91,8 @@ These scripts help you:
 - Testing database migrations
 
 **How to use:**
-```powershell
-.\setup-databases.ps1
+```bash
+.\setup-databases.sh
 ```
 
 **Requirements:**
@@ -103,7 +103,7 @@ These scripts help you:
 
 ---
 
-#### `start-all-services.ps1`
+#### `start-all-services.sh`
 **Purpose:** Start all backend microservices locally
 
 **When to use:**
@@ -112,8 +112,8 @@ These scripts help you:
 - Debugging service-to-service communication
 
 **How to use:**
-```powershell
-.\start-all-services.ps1
+```bash
+.\start-all-services.sh
 ```
 
 **What it does:**
@@ -126,7 +126,7 @@ These scripts help you:
 
 ---
 
-#### `start-local-dev.ps1`
+#### `start-local-dev.sh`
 **Purpose:** Start complete local development environment
 
 **When to use:**
@@ -134,13 +134,13 @@ These scripts help you:
 - Quick local environment setup
 
 **How to use:**
-```powershell
-.\start-local-dev.ps1
+```bash
+.\start-local-dev.sh
 ```
 
 ---
 
-#### `check-services.ps1`
+#### `check-services.sh`
 **Purpose:** Check health status of all local services
 
 **When to use:**
@@ -149,8 +149,8 @@ These scripts help you:
 - Testing actuator health endpoints
 
 **How to use:**
-```powershell
-.\check-services.ps1
+```bash
+.\check-services.sh
 ```
 
 **What it checks:**
@@ -161,7 +161,7 @@ These scripts help you:
 
 ---
 
-#### `start-port-forwarding.ps1`
+#### `start-port-forwarding.sh`
 **Purpose:** Forward local ports to AKS pods for debugging
 
 **When to use:**
@@ -170,8 +170,8 @@ These scripts help you:
 - Testing APIs in Azure environment
 
 **How to use:**
-```powershell
-.\start-port-forwarding.ps1
+```bash
+.\start-port-forwarding.sh
 ```
 
 **What it does:**
@@ -186,7 +186,7 @@ These scripts help you:
 
 ---
 
-#### `clean-databases.ps1`
+#### `clean-databases.sh`
 **Purpose:** Clean/reset local databases
 
 **When to use:**
@@ -195,8 +195,8 @@ These scripts help you:
 - Starting fresh with databases
 
 **How to use:**
-```powershell
-.\clean-databases.ps1
+```bash
+.\clean-databases.sh
 ```
 
 **Warning:** This deletes all data in local databases!
@@ -205,7 +205,7 @@ These scripts help you:
 
 ### Azure Management Scripts (Educational)
 
-#### `start-infra.ps1`
+#### `start-infra.sh`
 **Purpose:** Manually start stopped Azure infrastructure
 
 **When to use:**
@@ -213,8 +213,8 @@ These scripts help you:
 - Manual infrastructure control (instead of GitHub Actions)
 
 **How to use:**
-```powershell
-.\start-infra.ps1
+```bash
+.\start-infra.sh
 ```
 
 **What it does:**
@@ -226,7 +226,7 @@ These scripts help you:
 
 ---
 
-#### `stop-infra.ps1`
+#### `stop-infra.sh`
 **Purpose:** Manually stop running Azure infrastructure
 
 **When to use:**
@@ -234,8 +234,8 @@ These scripts help you:
 - Manual cost control (instead of GitHub Actions)
 
 **How to use:**
-```powershell
-.\stop-infra.ps1
+```bash
+.\stop-infra.sh
 ```
 
 **What it does:**
@@ -247,7 +247,7 @@ These scripts help you:
 
 ---
 
-#### `check-infra-status.ps1`
+#### `check-infra-status.sh`
 **Purpose:** Check status of Azure infrastructure
 
 **When to use:**
@@ -256,8 +256,8 @@ These scripts help you:
 - Learning Azure CLI status commands
 
 **How to use:**
-```powershell
-.\check-infra-status.ps1
+```bash
+.\check-infra-status.sh
 ```
 
 **What it checks:**
@@ -267,7 +267,7 @@ These scripts help you:
 
 ---
 
-#### `deploy-ui-to-azure.ps1`
+#### `deploy-ui-to-azure.sh`
 **Purpose:** Manually deploy frontend UI to Azure
 
 **When to use:**
@@ -275,15 +275,15 @@ These scripts help you:
 - Manual UI deployment (not recommended)
 
 **How to use:**
-```powershell
-.\deploy-ui-to-azure.ps1
+```bash
+.\deploy-ui-to-azure.sh
 ```
 
 **Note:** GitHub Actions workflow handles this automatically - see `.github/workflows/aks-deploy.yml`
 
 ---
 
-#### `test-deployment.ps1`
+#### `test-deployment.sh`
 **Purpose:** Run automated health checks on deployed infrastructure
 
 **When to use:**
@@ -292,8 +292,8 @@ These scripts help you:
 - Debugging deployment issues
 
 **How to use:**
-```powershell
-.\test-deployment.ps1
+```bash
+.\test-deployment.sh
 ```
 
 **What it tests:**
@@ -339,7 +339,7 @@ These scripts help you:
 **Use these scripts or Docker Compose:**
 
 #### Option 1: Docker Compose (Recommended)
-```powershell
+```bash
 # Start everything (databases + services)
 docker-compose up -d
 
@@ -353,16 +353,16 @@ docker-compose logs -f
 docker-compose down
 ```
 
-#### Option 2: PowerShell Scripts
-```powershell
+#### Option 2: Bash Scripts
+```bash
 # 1. Setup databases
-.\setup-databases.ps1
+.\setup-databases.sh
 
 # 2. Start all services
-.\start-all-services.ps1
+.\start-all-services.sh
 
 # 3. Check health
-.\check-services.ps1
+.\check-services.sh
 
 # 4. Start frontend (in another terminal)
 cd ..\frontend\account-opening-ui
@@ -375,18 +375,18 @@ npm start
 
 **Run scripts and read the code:**
 
-```powershell
+```bash
 # Learn how to start infrastructure
-.\start-infra.ps1
+.\start-infra.sh
 
 # Learn how to check status
-.\check-infra-status.ps1
+.\check-infra-status.sh
 
 # Learn how to stop infrastructure
-.\stop-infra.ps1
+.\stop-infra.sh
 
 # Read the scripts to understand Azure CLI commands!
-code start-infra.ps1
+code start-infra.sh
 ```
 
 **Better:** Check the GitHub Actions workflows (`.github/workflows/`) to see production-ready implementations
@@ -432,8 +432,8 @@ code start-infra.ps1
 1. **For Production:** Use GitHub Actions workflows exclusively
 2. **For Learning:** Read these scripts to understand Azure CLI
 3. **For Local Dev:** Use Docker Compose (easier than scripts)
-4. **For Debugging:** Use `test-deployment.ps1` to check Azure deployment
-5. **For Port-Forwarding:** Use `start-port-forwarding.ps1` to access AKS pods
+4. **For Debugging:** Use `test-deployment.sh` to check Azure deployment
+5. **For Port-Forwarding:** Use `start-port-forwarding.sh` to access AKS pods
 
 ---
 

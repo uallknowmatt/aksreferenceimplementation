@@ -251,7 +251,7 @@
         {
             "label": "Test: Run Health Checks",
             "type": "shell",
-            "command": "bash scripts/educational/test-deployment.ps1",
+            "command": "bash scripts/educational/test-deployment.sh",
             "problemMatcher": [],
             "presentation": {
                 "reveal": "always",
