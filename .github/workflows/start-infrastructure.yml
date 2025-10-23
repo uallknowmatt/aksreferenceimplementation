@@ -1,0 +1,133 @@
+name: Start Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to start'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  start-infrastructure:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login via OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Get Resource Names
+        id: resources
+        run: |
+          cd infrastructure/environments/${{ github.event.inputs.environment }}
+          
+          # Read location from terraform.tfvars
+          LOCATION=$(grep '^location' terraform.tfvars | awk -F'"' '{print $2}')
+          echo "LOCATION=$LOCATION" >> $GITHUB_OUTPUT
+          
+          # Map location to location code
+          case "$LOCATION" in
+            "eastus") LOCATION_CODE="eus" ;;
+            "eastus2") LOCATION_CODE="eus2" ;;
+            "westus") LOCATION_CODE="wus" ;;
+            "westus2") LOCATION_CODE="wus2" ;;
+            "centralus") LOCATION_CODE="cus" ;;
+            *) LOCATION_CODE="eus2" ;;
+          esac
+          echo "LOCATION_CODE=$LOCATION_CODE" >> $GITHUB_OUTPUT
+          
+          # Resource names
+          RG_NAME="rg-account-opening-${{ github.event.inputs.environment }}-${LOCATION_CODE}"
+          AKS_NAME="aks-account-opening-${{ github.event.inputs.environment }}-${LOCATION_CODE}"
+          POSTGRES_NAME="psql-account-opening-${{ github.event.inputs.environment }}-${LOCATION_CODE}"
+          
+          echo "RG_NAME=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "AKS_NAME=$AKS_NAME" >> $GITHUB_OUTPUT
+          echo "POSTGRES_NAME=$POSTGRES_NAME" >> $GITHUB_OUTPUT
+
+      - name: Check if AKS exists
+        id: check-aks
+        run: |
+          if az aks show --name ${{ steps.resources.outputs.AKS_NAME }} --resource-group ${{ steps.resources.outputs.RG_NAME }} &> /dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ AKS cluster found: ${{ steps.resources.outputs.AKS_NAME }}"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "❌ AKS cluster not found. Infrastructure may need to be deployed first."
+          fi
+
+      - name: Start AKS Cluster
+        if: steps.check-aks.outputs.exists == 'true'
+        run: |
+          echo "🚀 Starting AKS cluster: ${{ steps.resources.outputs.AKS_NAME }}..."
+          az aks start \
+            --name ${{ steps.resources.outputs.AKS_NAME }} \
+            --resource-group ${{ steps.resources.outputs.RG_NAME }}
+          echo "✅ AKS cluster started successfully!"
+
+      - name: Check if PostgreSQL exists
+        id: check-postgres
+        run: |
+          if az postgres flexible-server show --name ${{ steps.resources.outputs.POSTGRES_NAME }} --resource-group ${{ steps.resources.outputs.RG_NAME }} &> /dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ PostgreSQL server found: ${{ steps.resources.outputs.POSTGRES_NAME }}"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "❌ PostgreSQL server not found."
+          fi
+
+      - name: Start PostgreSQL Server
+        if: steps.check-postgres.outputs.exists == 'true'
+        run: |
+          echo "🚀 Starting PostgreSQL server: ${{ steps.resources.outputs.POSTGRES_NAME }}..."
+          az postgres flexible-server start \
+            --name ${{ steps.resources.outputs.POSTGRES_NAME }} \
+            --resource-group ${{ steps.resources.outputs.RG_NAME }}
+          echo "✅ PostgreSQL server started successfully!"
+
+      - name: Wait for services to be ready
+        if: steps.check-aks.outputs.exists == 'true'
+        run: |
+          echo "⏳ Waiting for services to be ready..."
+          sleep 30
+          echo "✅ Services should be ready now!"
+
+      - name: Summary
+        run: |
+          echo "## 🎉 Infrastructure Started Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Resources:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Resource Group**: ${{ steps.resources.outputs.RG_NAME }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check-aks.outputs.exists }}" == "true" ]; then
+            echo "- **AKS Cluster**: ✅ Started" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **AKS Cluster**: ❌ Not found" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ steps.check-postgres.outputs.exists }}" == "true" ]; then
+            echo "- **PostgreSQL**: ✅ Started" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **PostgreSQL**: ❌ Not found" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 💰 Cost Tip:" >> $GITHUB_STEP_SUMMARY
+          echo "Remember to run the **Stop Infrastructure** workflow when you're done testing to avoid unnecessary costs!" >> $GITHUB_STEP_SUMMARY
