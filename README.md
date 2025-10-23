@@ -156,6 +156,8 @@ The application uses PostgreSQL with the following databases:
 - `accountdb` - Account Service
 - `notificationdb` - Notification Service
 
+**Security:** PostgreSQL is deployed with **private VNet integration** (no public access). The database is only accessible from the AKS subnet via private networking.
+
 Database scripts are managed with Liquibase for version control and automated migrations.
 
 ## GitHub Actions Workflows
