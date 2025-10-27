@@ -161,6 +161,7 @@ Internet → Azure Load Balancer → AKS Cluster → 4 Microservices → Postgre
 #### For DevOps Engineers
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - CI/CD pipeline and deployment procedures
 - **[Infrastructure Management](docs/INFRASTRUCTURE_MANAGEMENT.md)** - Create, start, stop, destroy infrastructure
+- **[Infrastructure Explained (Line-by-Line)](docs/INFRASTRUCTURE_TERRAFORM_EXPLAINED.md)** - Complete line-by-line documentation of all Terraform and Kubernetes files
 - **[Application Access](docs/APPLICATION_ACCESS.md)** - How to get LoadBalancer IP and access application
 - **[Troubleshooting Guide](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[Azure Portal Guide](docs/AZURE_PORTAL_GUIDE.md)** - Using Azure Portal for management
