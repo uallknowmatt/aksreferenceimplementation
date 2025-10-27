@@ -3,11 +3,375 @@
 This document provides detailed technical information about the application architecture, infrastructure components, and technology stack.
 
 ## Table of Contents
+- [Azure Architecture Diagrams](#azure-architecture-diagrams)
 - [Application Layer](#application-layer)
 - [Infrastructure Layer](#infrastructure-layer)
 - [Network Architecture](#network-architecture)
 - [Database Layer](#database-layer)
 - [Load Balancer](#load-balancer)
+
+---
+
+## Azure Architecture Diagrams
+
+### High-Level Azure Architecture
+
+```mermaid
+graph TB
+    subgraph Internet
+        User[👤 End User<br/>Web Browser]
+    end
+    
+    subgraph Azure["☁️ Azure Cloud"]
+        subgraph RG["Resource Group: rg-account-opening-dev-eastus2"]
+            
+            subgraph LB_Section["Azure Load Balancer"]
+                LB[🔀 Load Balancer<br/>Standard SKU<br/>Public IP: Dynamic]
+            end
+            
+            subgraph VNet["Virtual Network: vnet-account-opening-dev-eastus2<br/>Address Space: 10.0.0.0/16"]
+                
+                subgraph AKS_Subnet["AKS Subnet: 10.0.1.0/24"]
+                    subgraph AKS["AKS Cluster: aks-account-opening-dev-eastus2"]
+                        subgraph Pods["Kubernetes Pods"]
+                            FE[🖥️ Frontend UI<br/>Port: 80<br/>Nginx + React]
+                            CS[⚙️ Customer Service<br/>Port: 8081<br/>Spring Boot]
+                            DS[📄 Document Service<br/>Port: 8082<br/>Spring Boot]
+                            AS[💳 Account Service<br/>Port: 8083<br/>Spring Boot]
+                            NS[📧 Notification Service<br/>Port: 8084<br/>Spring Boot]
+                        end
+                    end
+                end
+                
+                subgraph ACR_Subnet["ACR Subnet: 10.0.2.0/24"]
+                    ACR_PE[🔒 ACR Private Endpoint<br/>10.0.2.x]
+                end
+                
+                subgraph PG_Subnet["PostgreSQL Subnet: 10.0.3.0/24<br/>Delegated to PostgreSQL"]
+                    PG[🗄️ PostgreSQL Flexible Server<br/>Private IP: 10.0.3.x<br/>NO PUBLIC ACCESS]
+                end
+            end
+            
+            ACR[📦 Azure Container Registry<br/>Premium SKU<br/>Docker Images]
+            
+            LA[📊 Log Analytics<br/>Workspace<br/>Monitoring & Logs]
+        end
+    end
+    
+    User -->|HTTP Request| LB
+    LB -->|Health Probe /health| FE
+    LB -->|Traffic Distribution| FE
+    
+    FE -->|REST API| CS
+    FE -->|REST API| DS
+    FE -->|REST API| AS
+    FE -->|REST API| NS
+    
+    CS -->|JDBC<br/>Port 5432| PG
+    DS -->|JDBC<br/>Port 5432| PG
+    AS -->|JDBC<br/>Port 5432| PG
+    NS -->|JDBC<br/>Port 5432| PG
+    
+    AKS -->|Pull Images| ACR_PE
+    ACR_PE -.->|Private Link| ACR
+    
+    AKS -->|Send Logs| LA
+    PG -->|Send Logs| LA
+    
+    style User fill:#e1f5ff
+    style LB fill:#ffeb99
+    style AKS fill:#d4edda
+    style FE fill:#cce5ff
+    style CS fill:#fff3cd
+    style DS fill:#fff3cd
+    style AS fill:#fff3cd
+    style NS fill:#fff3cd
+    style PG fill:#f8d7da
+    style ACR fill:#e7e7e7
+    style LA fill:#d1ecf1
+```
+
+### Network Flow Diagram
+
+```mermaid
+flowchart LR
+    subgraph Public["🌐 Public Internet"]
+        Browser[Web Browser]
+    end
+    
+    subgraph Azure["☁️ Azure Cloud - East US 2"]
+        
+        subgraph Edge["Edge Network"]
+            ALB[Azure Load Balancer<br/>Public IP<br/>Standard SKU]
+        end
+        
+        subgraph VNet["VNet: 10.0.0.0/16"]
+            
+            subgraph AKS_Net["AKS Subnet: 10.0.1.0/24"]
+                K8S_SVC[Kubernetes Service<br/>frontend-ui<br/>Type: LoadBalancer]
+                
+                subgraph Pods["Pod Network"]
+                    FE_Pod1[Frontend Pod 1<br/>10.0.1.10]
+                    FE_Pod2[Frontend Pod 2<br/>10.0.1.11]
+                end
+                
+                Backend_SVC[Backend Services<br/>ClusterIP<br/>Internal Only]
+                
+                subgraph Backend_Pods["Backend Pods"]
+                    CS_Pod[Customer Service<br/>10.0.1.20]
+                    DS_Pod[Document Service<br/>10.0.1.21]
+                    AS_Pod[Account Service<br/>10.0.1.22]
+                    NS_Pod[Notification Service<br/>10.0.1.23]
+                end
+            end
+            
+            subgraph PG_Net["PostgreSQL Subnet: 10.0.3.0/24"]
+                PG_Server[(PostgreSQL<br/>10.0.3.5<br/>🔒 Private Only)]
+            end
+            
+            subgraph ACR_Net["ACR Subnet: 10.0.2.0/24"]
+                ACR_PE[ACR Endpoint<br/>10.0.2.5]
+            end
+        end
+        
+        ACR_Public[Azure Container Registry<br/>Private Access Only]
+    end
+    
+    Browser -->|"① HTTP/80"| ALB
+    ALB -->|"② Health Probe<br/>/health"| K8S_SVC
+    ALB -->|"③ Forward Traffic"| K8S_SVC
+    K8S_SVC -->|"④ Load Balance"| FE_Pod1
+    K8S_SVC -->|"④ Load Balance"| FE_Pod2
+    
+    FE_Pod1 -->|"⑤ API Calls"| Backend_SVC
+    FE_Pod2 -->|"⑤ API Calls"| Backend_SVC
+    
+    Backend_SVC --> CS_Pod
+    Backend_SVC --> DS_Pod
+    Backend_SVC --> AS_Pod
+    Backend_SVC --> NS_Pod
+    
+    CS_Pod -->|"⑥ JDBC<br/>SSL/TLS"| PG_Server
+    DS_Pod -->|"⑥ JDBC<br/>SSL/TLS"| PG_Server
+    AS_Pod -->|"⑥ JDBC<br/>SSL/TLS"| PG_Server
+    NS_Pod -->|"⑥ JDBC<br/>SSL/TLS"| PG_Server
+    
+    Pods -.->|"⑦ Pull Images<br/>via Private Link"| ACR_PE
+    ACR_PE -.->|Private Connection| ACR_Public
+    
+    style Browser fill:#e1f5ff
+    style ALB fill:#ffeb99
+    style K8S_SVC fill:#d4edda
+    style FE_Pod1 fill:#cce5ff
+    style FE_Pod2 fill:#cce5ff
+    style Backend_SVC fill:#fff3cd
+    style PG_Server fill:#f8d7da
+    style ACR_PE fill:#e7e7e7
+```
+
+### Kubernetes Service Mesh
+
+```mermaid
+graph TD
+    subgraph External["External Traffic"]
+        Internet[🌐 Internet Users]
+    end
+    
+    subgraph K8s["Kubernetes Cluster"]
+        
+        subgraph Services["Kubernetes Services"]
+            LB_SVC[frontend-ui Service<br/>Type: LoadBalancer<br/>Port: 80]
+            
+            CS_SVC[customer-service<br/>Type: ClusterIP<br/>Port: 80 → 8081]
+            DS_SVC[document-service<br/>Type: ClusterIP<br/>Port: 80 → 8082]
+            AS_SVC[account-service<br/>Type: ClusterIP<br/>Port: 80 → 8083]
+            NS_SVC[notification-service<br/>Type: ClusterIP<br/>Port: 80 → 8084]
+        end
+        
+        subgraph Frontend["Frontend Deployment"]
+            FE1[frontend-ui Pod<br/>Replica 1<br/>nginx:80]
+        end
+        
+        subgraph Backend["Backend Deployments"]
+            CS1[customer-service Pod<br/>Replica 1<br/>8081]
+            DS1[document-service Pod<br/>Replica 1<br/>8082]
+            AS1[account-service Pod<br/>Replica 1<br/>8083]
+            NS1[notification-service Pod<br/>Replica 1<br/>8084]
+        end
+        
+        subgraph Config["Configuration"]
+            CM_FE[ConfigMap<br/>frontend-ui-config<br/>Backend URLs]
+            CM_CS[ConfigMap<br/>customer-service-config<br/>DB Host]
+            
+            SEC_CS[Secret<br/>customer-service-secret<br/>DB Credentials]
+        end
+    end
+    
+    subgraph Database["Database Layer"]
+        PG[(PostgreSQL<br/>Flexible Server<br/>Private VNet)]
+    end
+    
+    Internet -->|HTTP Request| LB_SVC
+    LB_SVC --> FE1
+    
+    FE1 -->|/api/customers| CS_SVC
+    FE1 -->|/api/documents| DS_SVC
+    FE1 -->|/api/accounts| AS_SVC
+    FE1 -->|/api/notifications| NS_SVC
+    
+    CS_SVC --> CS1
+    DS_SVC --> DS1
+    AS_SVC --> AS1
+    NS_SVC --> NS1
+    
+    CS1 --> PG
+    DS1 --> PG
+    AS1 --> PG
+    NS1 --> PG
+    
+    CM_FE -.->|Environment Variables| FE1
+    CM_CS -.->|Environment Variables| CS1
+    SEC_CS -.->|Secrets| CS1
+    
+    style Internet fill:#e1f5ff
+    style LB_SVC fill:#ffeb99
+    style FE1 fill:#cce5ff
+    style CS_SVC fill:#d4edda
+    style DS_SVC fill:#d4edda
+    style AS_SVC fill:#d4edda
+    style NS_SVC fill:#d4edda
+    style CS1 fill:#fff3cd
+    style DS1 fill:#fff3cd
+    style AS1 fill:#fff3cd
+    style NS1 fill:#fff3cd
+    style PG fill:#f8d7da
+    style CM_FE fill:#e7e7e7
+    style CM_CS fill:#e7e7e7
+    style SEC_CS fill:#ffe6e6
+```
+
+### Security Architecture
+
+```mermaid
+graph TB
+    subgraph GitHub["GitHub Actions CI/CD"]
+        GHA[GitHub Actions Workflow]
+        OIDC[OIDC Authentication<br/>Federated Credentials]
+    end
+    
+    subgraph Azure["Azure Cloud"]
+        subgraph Identity["Identity & Access"]
+            AAD[Azure Active Directory]
+            MI_AKS[AKS Kubelet Identity<br/>Managed Identity]
+            MI_WL[Workload Identity<br/>for Pods]
+            RBAC[Azure RBAC<br/>AcrPull Role]
+        end
+        
+        subgraph Network["Network Security"]
+            NSG_AKS[NSG - AKS Subnet<br/>Allow: 80, 443<br/>Allow: Pod traffic]
+            NSG_PG[NSG - PostgreSQL<br/>Allow: 5432 from AKS only<br/>Deny: Public Internet]
+            PG_FW[PostgreSQL Firewall<br/>Public Access: DISABLED]
+        end
+        
+        subgraph Resources["Azure Resources"]
+            ACR_Secure[🔒 ACR - Premium<br/>Admin: Disabled<br/>Private Endpoint Only]
+            AKS_Secure[🔒 AKS Cluster<br/>Private Cluster Mode<br/>OIDC Enabled]
+            PG_Secure[🔒 PostgreSQL<br/>VNet Integration<br/>SSL Required]
+        end
+        
+        subgraph Data["Data Security"]
+            Secrets[Kubernetes Secrets<br/>Base64 Encoded<br/>DB Credentials]
+            TLS[TLS/SSL Encryption<br/>In-Transit]
+            Encryption[Azure Disk Encryption<br/>At-Rest]
+        end
+    end
+    
+    GHA -->|Authenticate| OIDC
+    OIDC -->|Federated Token| AAD
+    AAD -->|Grant Access| AKS_Secure
+    AAD -->|Grant Access| ACR_Secure
+    
+    MI_AKS -->|Pull Images| ACR_Secure
+    RBAC -->|Authorize| MI_AKS
+    
+    AKS_Secure -->|Pods Use| MI_WL
+    MI_WL -->|Access Azure Resources| AAD
+    
+    NSG_AKS -->|Protect| AKS_Secure
+    NSG_PG -->|Protect| PG_Secure
+    PG_FW -->|Block Public| PG_Secure
+    
+    AKS_Secure -->|Load Secrets| Secrets
+    AKS_Secure -->|Connect with SSL| PG_Secure
+    PG_Secure -->|Encrypted Storage| Encryption
+    
+    style GHA fill:#e1f5ff
+    style OIDC fill:#fff3cd
+    style AAD fill:#ffeb99
+    style MI_AKS fill:#d4edda
+    style MI_WL fill:#d4edda
+    style RBAC fill:#d4edda
+    style NSG_AKS fill:#ffe6e6
+    style NSG_PG fill:#ffe6e6
+    style PG_FW fill:#ffe6e6
+    style ACR_Secure fill:#e7e7e7
+    style AKS_Secure fill:#cce5ff
+    style PG_Secure fill:#f8d7da
+    style Secrets fill:#ffe6e6
+    style TLS fill:#d4edda
+    style Encryption fill:#d4edda
+```
+
+### CI/CD Pipeline Flow
+
+```mermaid
+flowchart TD
+    Start([Developer Pushes Code]) --> GHA_Trigger[GitHub Actions Triggered]
+    
+    GHA_Trigger --> Auth[🔐 OIDC Authentication<br/>Federated Credentials]
+    Auth --> Azure_Login[Azure Login via Workload Identity]
+    
+    Azure_Login --> Build_Stage[📦 Build Stage]
+    
+    Build_Stage --> Build_FE[Build Frontend<br/>npm build]
+    Build_Stage --> Build_BE[Build Backend Services<br/>Maven clean install]
+    
+    Build_FE --> Docker_FE[Docker Build Frontend<br/>Multi-stage build]
+    Build_BE --> Docker_BE[Docker Build Backend<br/>4 Services]
+    
+    Docker_FE --> Tag_FE[Tag: frontend-ui:latest<br/>frontend-ui:SHA]
+    Docker_BE --> Tag_BE[Tag Services<br/>latest + SHA]
+    
+    Tag_FE --> Push_ACR[📤 Push to ACR]
+    Tag_BE --> Push_ACR
+    
+    Push_ACR --> Get_Creds[Get AKS Credentials<br/>az aks get-credentials]
+    
+    Get_Creds --> Replace_Vars[Replace Variables in K8s YAML<br/>ACR URL, Image Tags, DB Host]
+    
+    Replace_Vars --> Deploy_Config[Deploy ConfigMaps & Secrets]
+    Deploy_Config --> Deploy_Services[Deploy Services]
+    Deploy_Services --> Deploy_Apps[Deploy Applications<br/>kubectl apply]
+    
+    Deploy_Apps --> Wait[⏳ Wait for Rollout<br/>kubectl rollout status]
+    
+    Wait --> Health_Check[🏥 Health Checks<br/>6 Services]
+    
+    Health_Check -->|All Pass| Success([✅ Deployment Complete])
+    Health_Check -->|Any Fail| Rollback[⚠️ Deployment Failed<br/>Manual Intervention]
+    
+    Success --> Notify_Success[💬 Notify Team<br/>Slack/Email]
+    Rollback --> Notify_Fail[🚨 Alert Team<br/>Investigation Needed]
+    
+    style Start fill:#e1f5ff
+    style Auth fill:#fff3cd
+    style Build_Stage fill:#d4edda
+    style Push_ACR fill:#cce5ff
+    style Deploy_Apps fill:#ffeb99
+    style Health_Check fill:#ffe6e6
+    style Success fill:#d4edda
+    style Rollback fill:#f8d7da
+```
 
 ---
 
