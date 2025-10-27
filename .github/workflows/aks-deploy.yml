@@ -820,6 +820,8 @@ jobs:
           kubectl apply -f k8s/document-service-deployment.yaml
           kubectl apply -f k8s/account-service-deployment.yaml
           kubectl apply -f k8s/notification-service-deployment.yaml
+            # Run cleanup for frontend-ui pods before rollout
+            bash scripts/educational/cleanup-frontend-ui-pods.sh
           kubectl apply -f k8s/frontend-ui-deployment.yaml
           echo "✅ Applications deployed!"
 
